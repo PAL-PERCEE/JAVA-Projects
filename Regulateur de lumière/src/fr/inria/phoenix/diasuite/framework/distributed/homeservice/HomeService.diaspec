@@ -1,0 +1,7 @@
+device HomeService extends Service {
+}
+device Service extends Device {
+}
+device Device {
+  attribute id as String;
+}

@@ -1,0 +1,12 @@
+enumeration ApplianceType{FAN, WATER_VALVE, OVEN, LIGHT, HEATER}
+action ADBStatus{
+  changeStatus(appliance as ApplianceType, status as Boolean);
+}
+device ApplianceDashBoard extends IHM {
+  action ADBStatus;
+}
+device IHM extends Device {
+}
+device Device {
+  attribute id as String;
+}

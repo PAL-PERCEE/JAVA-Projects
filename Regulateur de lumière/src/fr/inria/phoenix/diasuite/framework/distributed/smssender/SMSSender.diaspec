@@ -1,0 +1,62 @@
+structure Message {
+sender as Contact;
+title as String;
+text as String;
+attachments as File[];
+}
+structure FileInfo {
+name as String;
+type as FileType;
+size as Integer;
+}
+structure File {
+info as FileInfo;
+content as Binary;
+}
+structure Contact {
+name as String;
+emailAddress as String;
+phone as String;
+mobile as String;
+iconUrl as String;
+groups as String[];
+}
+enumeration FileType{SOUND, DIRECTORY, RAW_AUDIO, OTHER, TEXT, IMAGE, VIDEO}
+action SendMessage{
+  sendMessage(to as Contact, title as String, content as String, attachments as File[]);
+  sendMessageWithImage(to as Contact, title as String, content as String, image as String);
+}
+action AskQuestion{
+  askCloseQuestion(to as Contact, questionId as String, title as String, content as String, possibleAnswers as String[]);
+  askCloseQuestionWithImage(to as Contact, questionId as String, title as String, content as String, possibleAnswers as String[], image as String);
+  askOpenQuestion(to as Contact, questionId as String, title as String, content as String);
+  askOpenQuestionWithImage(to as Contact, questionId as String, title as String, content as String, image as String);
+}
+action SendTrustedMessage{
+  sendTrustedMessage(to as Contact, title as String, content as String);
+  sendTrustedMessageWithImage(to as Contact, title as String, content as String, image as String);
+}
+action AskTrustedQuestion{
+  askCloseTrustedQuestion(to as Contact, questionId as String, title as String, content as String, possibleAnswers as String[]);
+  askCloseTrustedQuestionWithImage(to as Contact, questionId as String, title as String, content as String, possibleAnswers as String[], image as String);
+  askOpenTrustedQuestion(to as Contact, questionId as String, title as String, content as String);
+  askOpenTrustedQuestionWithImage(to as Contact, questionId as String, title as String, content as String, image as String);
+}
+device SMSSender extends CommunicationService {
+}
+device CommunicationService extends Service {
+  source questionAnswer as String indexed by questionId as String;
+  source lastMessage as Message;
+  source trustedQuestionAnswer as String indexed by questionId as String;
+  source lastTrustedMessage as Message;
+  source safeContacts as Contact[];
+  action SendMessage;
+  action AskQuestion;
+  action SendTrustedMessage;
+  action AskTrustedQuestion;
+}
+device Service extends Device {
+}
+device Device {
+  attribute id as String;
+}

@@ -1,0 +1,34 @@
+structure Date {
+day as Integer;
+month as Integer;
+year as Integer;
+hour as Integer;
+minute as Integer;
+}
+structure AgendaEvent {
+title as String;
+description as String;
+startTime as Date;
+endTime as Date;
+place as String;
+calendar as String;
+}
+action AgendaEventAction{
+  addEvent(event as AgendaEvent);
+  replaceEvent(oldEvent as AgendaEvent, newEvent as AgendaEvent);
+  removeEvent(event as AgendaEvent);
+}
+device Agenda extends HomeService {
+  attribute owner as String;
+  source currentEvent as AgendaEvent;
+  source nextEvent as AgendaEvent;
+  source events as AgendaEvent[] indexed by filter as AgendaEvent;
+  action AgendaEventAction;
+}
+device HomeService extends Service {
+}
+device Service extends Device {
+}
+device Device {
+  attribute id as String;
+}

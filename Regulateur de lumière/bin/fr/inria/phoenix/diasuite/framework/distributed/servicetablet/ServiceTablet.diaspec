@@ -1,0 +1,16 @@
+enumeration ServiceTabletMode{PHONE, SHOPPING, ALERT}
+action PushContacts{
+  pushContacts(profiles as PersonalProfile[]);
+}
+device ServiceTablet extends PhysicalDevice {
+  source tabletMode as ServiceTabletMode;
+  source tabletAction as ServiceTabletMode indexed by profile as PersonalProfile;
+  action PushContacts;
+}
+device PhysicalDevice extends Device {
+  attribute location as String;
+  attribute user as String;
+}
+device Device {
+  attribute id as String;
+}

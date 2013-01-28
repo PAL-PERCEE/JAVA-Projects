@@ -1,0 +1,3 @@
+device Device {
+  attribute id as String;
+}

@@ -1,0 +1,35 @@
+structure FileInfo {
+name as String;
+type as FileType;
+size as Integer;
+}
+structure File {
+info as FileInfo;
+content as Binary;
+}
+structure Contact {
+name as String;
+emailAddress as String;
+phone as String;
+mobile as String;
+iconUrl as String;
+groups as String[];
+}
+enumeration Relationship{FAMILY, ME, CAREGIVER, MEDICAL, FRIEND}
+enumeration FileType{SOUND, DIRECTORY, RAW_AUDIO, OTHER, TEXT, IMAGE, VIDEO}
+structure PersonalProfile {
+info as Contact;
+picture as File;
+relationship as Relationship;
+}
+device PersonalAddressBook extends UserService {
+  source profiles as PersonalProfile[] indexed by filter as PersonalProfile;
+}
+device UserService extends Service {
+  attribute user as String;
+}
+device Service extends Device {
+}
+device Device {
+  attribute id as String;
+}

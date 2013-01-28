@@ -1,0 +1,12 @@
+device Clock extends BuiltIn {
+  source tickSecond as Integer;
+  source tickMinute as Integer;
+  source tickHour as Integer;
+}
+device BuiltIn extends Service {
+}
+device Service extends Device {
+}
+device Device {
+  attribute id as String;
+}

@@ -1,0 +1,48 @@
+<!-- Target to launch automated tests -->
+<project>
+	<import optional="true" file="jar.xml"/>
+	
+	<condition property="test-present">
+	  	<available file="${test.dir}" type="dir"/>
+	</condition> 
+
+	<target name="test" description="Launch automated tests if presents" if="test-present">
+		<if><not><available file="${external.dir}/junit-4.7.jar"/></not>
+			<then>
+				<get.repository src="${repository.external}/junit-4.7.jar" dest="${external.dir}" />
+			</then>
+		</if>
+
+		<delete dir="${testreports.dir}" />
+		<mkdir dir="${testreports.dir}" />
+		
+		<property name="binDir" value="${compile.dir}/${project.name}" />
+		<antcall target="~build"/>
+		<javac srcdir="${test.dir}" destdir="${binDir}" debug="on">
+			<classpath>
+				<fileset dir="${libs.dir}">
+					<include name="**/*" />
+				</fileset>
+			</classpath>
+		</javac>
+		
+		<junit haltonerror="true" haltonfailure="true" >
+			<classpath>
+				<fileset dir="${libs.dir}">
+					<include name="**/*.jar" />
+				</fileset>
+				<pathelement path="${binDir}" />
+			</classpath>
+
+			<batchtest todir="${testreports.dir}">
+				<formatter type="xml" />
+				<fileset dir="${test.dir}">
+					<include name="**/*Test.java" />
+					<exclude name="**/*AbstractTest.java" />
+				</fileset>
+			</batchtest>
+		</junit>
+		
+		<delete dir="${binDir}"/>
+	</target>
+</project>

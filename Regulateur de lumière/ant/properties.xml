@@ -1,0 +1,148 @@
+<!--
+	This ant project load properties for DiaSuite compilation scripts
+	The first property file is the base.properties that should contains only clean properties
+	The second property file is the composed.properties that can use other properties.
+	This ant project also takes *package* properties from base.properties and creates /*package* properties
+		that are the original properties with dots (.) replaced by slashes (/)
+	It also load ant contrib tasks
+  -->
+<project>
+
+	<taskdef resource="net/sf/antcontrib/antlib.xml" classpath="ant/ant-contrib.jar" />
+	
+	<import file="macros/misc.xml"/>
+	
+	<lowercase property="project.name.lowercase" value="${project.name}"/>
+
+	<!-- Set default project properties -->
+	<defproperty property="project.type" value="core" trim="true" /> <!-- Default project type: core -->
+	<switch value="${project.type}" caseinsensitive="true"><!-- Default values for pack.type -->
+		<case value="app">    <defproperty property="pack.type" value="app"  trim="true" /></case>
+		<case value="library"><defproperty property="pack.type" value="jar"  trim="true" /></case>
+		<case value="core">   <defproperty property="pack.type" value="jar"  trim="true" /></case>
+		<case value="device"> <defproperty property="pack.type" value="osgi" trim="true" /></case>
+		<case value="taxo">   <defproperty property="pack.type" value="taxo" trim="true" /></case>
+		<default>             <defproperty property="pack.type" value="jar"  trim="true" /></default>
+	</switch>
+	<switch value="${project.type}" caseinsensitive="true"><!-- Default values for launch.type -->
+		<case value="app">    <defproperty property="launch.type" value="rmi"  trim="true" /></case>
+		<case value="library"><defproperty property="launch.type" value="none" trim="true" /></case>
+		<case value="core">   <defproperty property="launch.type" value="none" trim="true" /></case>
+		<case value="device"> <defproperty property="launch.type" value="rmi"  trim="true" /></case>
+		<default>             <defproperty property="launch.type" value="none" trim="true" /></default>
+	</switch>
+	<defproperty property="osgi.name" value="${device.basename}.${project.name.lowercase}"/>
+	<switch value="${project.type}" caseinsensitive="true"><!-- Default values for generate.type -->
+		<case value="app">    <defproperty property="generate.type" value="fmk"  trim="true" /></case>
+		<case value="library"><defproperty property="generate.type" value="none" trim="true" /></case>
+		<case value="core">   <defproperty property="generate.type" value="none" trim="true" /></case>
+		<case value="device"> <defproperty property="generate.type" value="fmk"  trim="true" /></case>
+		<case value="taxo">   <defproperty property="generate.type" value="fmk"  trim="true" /></case>
+		<default>             <defproperty property="generate.type" value="none" trim="true" /></default>
+	</switch>
+	<loadproperties srcfile="ant/base.properties"/>
+
+	<propertyselector property="pack.list"
+                         delimiter=","
+                         match="((.*\.)*package(\..*)*)"
+                         select="\1"
+                         casesensitive="false" />
+
+	<for list="${pack.list}"  delimiter="," param="pack">
+		<sequential>
+			<propertyregex property="/@{pack}" input="${@{pack}}" regexp="\." replace="/"/>
+		</sequential>
+	</for>
+	<loadproperties srcfile="ant/composed.properties"/>
+
+	<macrodef name="propertycontains" description="Tells wether the property already contains a value">
+		<attribute name="property" description="The property to extend"/>
+		<attribute name="value" description="The value to test if present"/>
+		<attribute name="result" description="The property to put the results in"/>
+		<attribute name="separator" default=":" description="The separator to put between the two values"/>
+		<sequential>
+			<if><isset property="@{property}"/>
+				<then>
+					<for list="${@{property}}" delimiter="@{separator}" param="val">
+						<sequential>
+							<if><equals arg1="@{val}" arg2="@{value}"/>
+								<then><property value="true" name="@{result}"/></then>
+							</if>
+						</sequential>
+					</for>
+				</then>
+			</if>
+		</sequential>				
+	</macrodef>
+	
+	<macrodef name="propertyappend" description="Copy the property named in append if exists (or the value in value) and concatenate it in property">
+		<attribute name="property" description="The property to extend"/>
+		<attribute name="value" default="" description="The value to append to property (use this or append)"/>
+		<attribute name="append" default="" description="The property to append to property (use this or value)"/>
+		<attribute name="separator" default=":" description="The separator to put between the two values"/>
+		<sequential>
+			<if>
+				<and><isset property="@{append}"/><not><equals arg1="" arg2="${@{append}}" /></not><not><equals arg1="" arg2="@{append}" /></not></and>
+				<then><trim property="__value" value="${@{append}}"/></then>
+				<else><trim property="__value" value="@{value}"/></else>
+			</if>
+			<if>
+				<not><equals arg1="" arg2="${__value}" /></not>
+				<then>
+					<!-- The property to append exists -->
+					<if>
+						<not><isset property="@{property}" /></not>
+						<then><property name="@{property}" value="${__value}"/><!-- Simple copy if the property doesn't exists --></then>
+						<else>
+							<for list="${__value}" param="val" delimiter="@{separator}"><!-- Adds only non-existant properties -->
+								<sequential>
+									<propertycontains property="@{property}" value="@{val}" result="__contains@{val}" separator="@{separator}"/>
+									<if><isset property="__contains@{val}"/>
+										<then><var name="__contains@{val}" unset="true"/></then>
+										<else>
+											<if><equals arg1="${@{property}}" arg2=""/>
+												<then><property name="__x" value="${__value}"/></then>
+												<else><property name="__x" value="${@{property}}@{separator}@{val}"/></else>
+											</if>
+											<propertycopy property="@{property}" from="__x" override="true"/><!-- Simple copy if the property doesn't exists -->
+											<var name="__x" unset="true" />
+										</else>
+									</if>
+								</sequential>
+							</for>
+						</else>
+					</if>
+				</then>
+			</if>
+			<var name="__value" unset="true"/>
+		</sequential>
+	</macrodef>
+
+	<macrodef name="constructdeplist" description="Determines the actual list of dependencies depending on project, packaging and execution types">
+		<attribute name="type" description="Type of dependencies (diasuite | library | external | resources)"/>
+		<sequential>
+			<defproperty property="dependencies.@{type}"  value="" trim="true"/>
+			<propertycopy property="orig.dependencies.@{type}" from="dependencies.@{type}"/>
+			<propertyappend property="dependencies.@{type}" append="project-${project.type}.dependencies.@{type}"/>
+			<propertyappend property="dependencies.@{type}" append="package-${pack.type}.dependencies.@{type}"/>
+			<propertyappend property="dependencies.@{type}" append="launch-${launch.type}.dependencies.@{type}"/>
+			<propertyappend property="dependencies.@{type}" append="generate-${generate.type}.dependencies.@{type}"/>
+		</sequential>
+	</macrodef>
+
+	<!-- Determines the actual lists of dependencies -->
+	<constructdeplist type="external" />
+	<constructdeplist type="diasuite" />
+	<constructdeplist type="library" />
+	<constructdeplist type="resources" />
+		
+	<!-- Construct the lists of generators to use -->
+	<propertyappend property="generators" append="project-${project.type}.generators"/>
+	<propertyappend property="generators" append="package-${pack.type}.generators"/>
+	<propertyappend property="generators" append="launch-${launch.type}.generators"/>
+	<propertyappend property="generators" append="generate-${generate.type}.generators"/>
+
+	<!-- Project description -->
+	<defproperty property="project.fullname" value="${project.name}"/>
+	<defproperty property="project.description" value=""/>
+</project>

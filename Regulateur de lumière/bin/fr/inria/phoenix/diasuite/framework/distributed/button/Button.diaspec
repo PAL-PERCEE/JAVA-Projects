@@ -1,0 +1,10 @@
+device Button extends PhysicalDevice {
+  source pushed as Boolean;
+}
+device PhysicalDevice extends Device {
+  attribute location as String;
+  attribute user as String;
+}
+device Device {
+  attribute id as String;
+}

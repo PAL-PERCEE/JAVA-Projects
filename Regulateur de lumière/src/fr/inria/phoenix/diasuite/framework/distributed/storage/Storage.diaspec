@@ -1,0 +1,30 @@
+structure FileInfo {
+name as String;
+type as FileType;
+size as Integer;
+}
+structure File {
+info as FileInfo;
+content as Binary;
+}
+enumeration FileType{SOUND, DIRECTORY, RAW_AUDIO, OTHER, TEXT, IMAGE, VIDEO}
+action StoragePutAction{
+  put(file as File);
+}
+action StorageDeleteAction{
+  delete(file as FileInfo);
+}
+device Storage extends PhysicalDevice {
+  attribute name as String;
+  source file as File indexed by info as FileInfo;
+  source fileBrowsing as FileInfo[] indexed by directory as FileInfo, filter as FileType;
+  action StoragePutAction;
+  action StorageDeleteAction;
+}
+device PhysicalDevice extends Device {
+  attribute location as String;
+  attribute user as String;
+}
+device Device {
+  attribute id as String;
+}

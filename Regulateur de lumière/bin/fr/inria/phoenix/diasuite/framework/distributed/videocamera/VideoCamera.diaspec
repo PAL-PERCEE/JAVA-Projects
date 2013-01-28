@@ -1,0 +1,28 @@
+structure FileInfo {
+name as String;
+type as FileType;
+size as Integer;
+}
+structure File {
+info as FileInfo;
+content as Binary;
+}
+enumeration FileType{SOUND, DIRECTORY, RAW_AUDIO, OTHER, TEXT, IMAGE, VIDEO}
+action StartStopRecording{
+  startRecording();
+  stopRecording();
+}
+device VideoCamera extends Camera {
+  source video as File;
+  action StartStopRecording;
+}
+device Camera extends PhysicalDevice {
+  source image as File;
+}
+device PhysicalDevice extends Device {
+  attribute location as String;
+  attribute user as String;
+}
+device Device {
+  attribute id as String;
+}

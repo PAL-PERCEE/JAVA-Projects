@@ -1,0 +1,16 @@
+action ScheduleTimer{
+  schedule(id as String, delayMs as Integer);
+  periodicSchedule(id as String, delayMs as Integer, periodMs as Integer);
+  cancel(id as String);
+}
+device Timer extends BuiltIn {
+  source timerTriggered as String indexed by timerId as String;
+  action ScheduleTimer;
+}
+device BuiltIn extends Service {
+}
+device Service extends Device {
+}
+device Device {
+  attribute id as String;
+}

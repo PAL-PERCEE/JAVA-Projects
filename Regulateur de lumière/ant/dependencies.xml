@@ -1,0 +1,111 @@
+<!--
+	This project contains the targets for installing dependencies
+  -->
+<project>
+
+	<import optional="true" file="properties.xml" />
+
+	<!-- Grabbing XML file to edit the .classpath file -->
+	<if><not><available file="ant/xmltask.jar"/></not>
+		<then><get.repository dest="ant" src="${repository.external}/xmltask.jar"/></then>
+	</if>
+	<if><available file="ant/xmltask.jar"/>
+		<then><taskdef name="xmltask" classname="com.oopsconsultancy.xmltask.ant.XmlTask" classpath="ant/xmltask.jar"/></then>
+	</if>
+	
+	<macrodef name="classpath.clean" description="Clean the libs in a .classpath file">
+		<attribute name="file" description="The .classpath file" default=".classpath"/>
+		<sequential>
+			<if>
+				<and>
+					<available file="ant/xmltask.jar"/>
+					<available file="@{file}"/>
+				</and>
+				<then>
+					<xmltask source="@{file}" dest="@{file}.new" preserveType="true" outputter="simple:4">
+						<remove path="classpath/classpathentry[@kind='lib']"/>
+					</xmltask>
+					<move file="@{file}.new" tofile="@{file}" overwrite="true"/>
+				</then>
+			</if>
+		</sequential>
+	</macrodef>
+	
+	<macrodef name="classpath.addlib" description="Add a dependencies to the .classpath file">
+		<attribute name="lib" description="The path of the dependency"/>
+		<attribute name="file" description="The .classpath file" default=".classpath"/>
+		<sequential>
+			<if>
+				<and>
+					<available file="ant/xmltask.jar"/>
+					<available file="@{file}"/>
+					<available file="@{lib}"/>
+					<matches string="@{lib}" pattern="\.jar$" casesensitive="false"/>
+				</and>
+				<then>
+					<xmltask source="@{file}" dest="@{file}.new" preserveType="true" outputter="simple:4">
+						<insert path="classpath">
+							<![CDATA[
+								<classpathentry kind="lib" path="@{lib}"/>
+							]]>
+						</insert>
+					</xmltask>
+					<move file="@{file}.new" tofile="@{file}" overwrite="true"/>
+				</then>
+			</if>
+		</sequential>
+	</macrodef>
+	
+	<macrodef name="fetchdeps" description="Fetch dependencies specified in a ':' separated list from the repository">
+		<attribute name="type" description="Type of dependencies (diasuite | library | external | resources)"/>
+		<attribute name="list" description="List of the dependency to fetch" />
+		<sequential>
+			<!-- Creates local directory if it does not exist -->
+			<if><not><available file="${@{type}.dir}"/></not>
+				<then><mkdir dir="${@{type}.dir}"/></then></if>
+			<!-- Fetch the resources -->
+			<for list="@{list}" delimiter=":" param="name">
+				<sequential>
+					<if><not><equals arg1="@{name}" arg2="${project.name}.jar"/></not><!-- Avoid fetching current dependency -->
+						<then>
+							<!-- Fetching the dependency -->
+							<get.repository dest="${@{type}.dir}" src="${repository.@{type}}/@{name}" />
+							<!-- Adding it to the classpath -->
+							<classpath.addlib lib="${@{type}.dir}/@{name}"/>
+						</then>
+					</if>
+				</sequential>
+			</for>
+		</sequential>
+	</macrodef>
+	
+	<macrodef name="fetchdependencies" description="Fetch dependencies specified by type using the dependencies.type variable">
+		<attribute name="type" description="Type of dependencies (diasuite | library | external | resources)"/>
+		<attribute name="force" description="Force the update even if dependencies list is empty (on | off | true | false | yes | no)" default="false" />
+		<sequential>
+			<if><or><and><not><equals arg1="${dependencies.@{type}}" arg2=""/></not><isset property="dependencies.@{type}"/></and>
+				<istrue value="@{force}"/></or>
+				<then>
+					<echo level="info">Fetching @{type} dependencies...</echo><fetchdeps type="@{type}" list="${dependencies.@{type}}"/>
+				</then>
+			</if>
+		</sequential>
+	</macrodef>
+	
+	<target name="dependencies" description="Install dependencies from the repository">
+		<classpath.clean/>
+		<fetchdependencies type="diasuite" force="true"/>
+		<fetchdependencies type="external" force="true"/>
+		<fetchdependencies type="library" force="true"/>
+		<fetchdependencies type="resources" force="false"/>
+	</target>
+
+	<propertyappend property="targets.clean" value="dependencies.clean"/><!-- Add dependencies cleaning as a default target -->
+	<!-- Hidden target: Clean the dependencies -->
+	<target name="dependencies.clean">
+		<delete dir="${external.dir}"  includeemptydirs="true"/>
+		<delete dir="${diasuite.dir}"  includeemptydirs="true"/>
+		<delete dir="${library.dir}"   includeemptydirs="true"/>
+		<delete dir="${libs.dir}"      includeemptydirs="true"/>
+	</target>
+</project>

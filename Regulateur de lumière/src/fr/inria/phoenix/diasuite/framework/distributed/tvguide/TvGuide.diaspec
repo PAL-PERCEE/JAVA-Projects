@@ -1,0 +1,42 @@
+structure TvSchedule {
+title as String;
+description as String;
+genre as String;
+startTime as Date;
+endTime as Date;
+channel as String;
+}
+structure FileInfo {
+name as String;
+type as FileType;
+size as Integer;
+}
+structure Date {
+day as Integer;
+month as Integer;
+year as Integer;
+hour as Integer;
+minute as Integer;
+}
+structure File {
+info as FileInfo;
+content as Binary;
+}
+structure Channel {
+name as String;
+icon as File;
+}
+enumeration FileType{SOUND, DIRECTORY, RAW_AUDIO, OTHER, TEXT, IMAGE, VIDEO}
+device TvGuide extends HomeService {
+  source availableChannels as Channel[];
+  source currentProgram as TvSchedule indexed by channelId as String;
+  source nextProgram as TvSchedule indexed by channelId as String;
+  source programs as TvSchedule[] indexed by filter as TvSchedule;
+}
+device HomeService extends Service {
+}
+device Service extends Device {
+}
+device Device {
+  attribute id as String;
+}

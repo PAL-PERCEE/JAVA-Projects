@@ -1,0 +1,14 @@
+action UpdateLockStatus{
+  updateStatus(isLocked as Boolean);
+}
+device KeyPad extends PhysicalDevice {
+  source isLocked as Boolean;
+  action UpdateLockStatus;
+}
+device PhysicalDevice extends Device {
+  attribute location as String;
+  attribute user as String;
+}
+device Device {
+  attribute id as String;
+}

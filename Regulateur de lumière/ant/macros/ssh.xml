@@ -1,0 +1,330 @@
+<!-- Macros for doing ssh over a proxy -->
+<project>
+	
+	<!-- For username it tries to look out for property @{user}.@{host} first then @{user} then don't use username
+	 -->
+	<macrodef name="ssh-userhost" description="Create the host from a user property and a hostname">
+		<attribute name="property" description="The output property"/>
+		<attribute name="user" description="The user property" default="ssh.user"/>
+		<attribute name="host" description="The host name"/>
+		<sequential>
+			<var unset="true" name="@{property}"/>
+			<if><and><isset property="@{user}.@{host}"/><not><equals arg1="${@{user}.@{host}}" arg2=""/></not></and>
+				<then><property name="@{property}" value="${@{user}.@{host}}@@@{host}"/></then>
+				<elseif><and><isset property="@{user}"/><not><equals arg1="${@{user}}" arg2=""/></not></and>
+					<then><property name="@{property}" value="${@{user}}@@@{host}"/></then>
+				</elseif>
+				<else><property name="@{property}" value="@{host}"/></else>
+			</if>
+		</sequential>
+	</macrodef>
+	
+	<macrodef name="cmd-askusername" description="Do a ssh command and ask for username if it fails and retry">
+		<element name="cmd" description="The SSH command to try" implicit="true"/>
+		<sequential>
+			<trycatch property="ssh.errors">
+				<try>
+					<cmd/>
+				</try>
+				<catch>
+					<echo>Failed maybe due to username errror. Trying to get username from user and retrying SCP...</echo>
+					<echo>The message was ${ssh.errors}</echo>
+					<var name="ssh.user" unset="true"/>
+					<input message="SSH username:" addproperty="ssh.user" defaultvalue="${user.name}"/>
+					<cmd/>
+				</catch>
+			</trycatch>
+		</sequential>
+	</macrodef>
+	
+	
+	<!-- Do a simple ssh
+			@cmd   the command to execute
+			@host  the destination host including the user
+			@port  the SSH port (22 by default)
+			
+	BUG: This task use ssh command because the sshexec task is not complete enough (especially no ProxyCommand) so it might fails under windows
+	
+		  -->
+		<macrodef name="ssh-exec" description="Launch a SSH command">
+			<attribute name="cmd" description="The command to execute"/>
+			<attribute name="host" description="The destination host that may integrate the username"/>
+			<attribute name="port" default="22" description="The SSH port"/>
+			<element name="ssh-elements" optional="true" implicit="true" description="Supplementary SSH options"/>
+			<sequential>
+				<trycatch>
+					<try>
+						<exec executable="ssh" failonerror="true" errorproperty="ssh.errors">
+							<!-- Disable SSH Key checking --><arg value="-o" /><arg value="UserKnownHostsFile=/dev/null"/><arg value="-o"/><arg value="StrictHostKeyChecking=no"/>
+							<ssh-elements/>
+							<arg value="-t"/> <arg value="-t"/> <!-- Allocate a tty for sudo -->
+							<arg value="-n"/>                   <!-- stdin => /dev/null -->
+							<arg value="@{host}" />
+							<arg value="@{cmd}" />      <!-- As root and disable interaction -->
+						</exec>
+				   	</try>
+					<catch>
+						<fail message="ssh execution of @{cmd} on @{host} failed with errors:
+							${ssh.errors}"/>
+					</catch>
+				</trycatch>
+			</sequential>
+		</macrodef>
+	
+		<!-- Do a simple scp
+			@from  the original file
+			@to    the destination file
+			@host  the destination host including the user
+			@port  the SSH port (22 by default)
+
+	BUG: This task use scp command because the scp task is not complete enough (especially no ProxyCommand) so it might fails under windows
+		  -->
+		<macrodef name="scp-exec"  description="Launch a SCP to remote host command">
+			<attribute name="from" description="The local file to copy"/>
+			<attribute name="to"   description="The remote file"/>
+			<attribute name="host" description="The remote host that may integrate the username"/>
+			<attribute name="port" default="22" description="The SSH port"/>
+			<element name="scp-elements" optional="true" implicit="true" description="Supplementary SSH options"/>
+			<sequential>
+				<propertyregex property="__to"   input="@{to}"   defaultValue="@{to}"   regexp="(\s)" replace="\\\\\0" global="true"/>
+				<trycatch>
+					<try>
+			    
+						<exec executable="scp" failonerror="true" errorproperty="ssh.errors">
+							<!-- Disable SSH Key checking --><arg value="-o" /><arg value="UserKnownHostsFile=/dev/null"/><arg value="-o"/><arg value="StrictHostKeyChecking=no"/>
+							<!-- Batch mode --><arg value="-B" />
+							<!-- no progress meter --><arg value="-q" />
+							<scp-elements/>
+							<arg value="@{from}" />
+							<arg value="@{host}:${__to}" />
+						</exec>
+				   	</try>
+					<catch>
+						<fail message="scp failure from @{from} to @{host}:${__to} with errors:
+						${ssh.errors}"/>
+					</catch>
+				</trycatch>
+				<var name="__to" unset="true"/>
+			</sequential>
+		</macrodef>
+		
+	<!-- Do a ssh command
+		@cmd   the command to execute
+		@host  the destination host
+		@port  the SSH port (22 by default)
+		
+		influencing property: ssh.user to specifies a different username from the system username
+	  -->	
+	<macrodef name="ssh-cmd"   description="Launch a SSH command using the property ssh.user as ssh username">
+		<attribute name="cmd" description="The command to execute"/>
+		<attribute name="host" description="The destination host"/>
+		<attribute name="port" default="22" description="The SSH port"/>
+		<element name="ssh-elements" implicit="true" optional="true" description="Supplementary SSH options"/>
+		<sequential>
+			<ssh-userhost property="__ssh_host" host="@{host}"/>
+			<ssh-exec cmd="@{cmd}" host="${__ssh_host}" port="@{port}">
+				<ssh-elements/>
+			</ssh-exec>
+			<var name="__ssh_host" unset="true"/>
+		</sequential>
+	</macrodef>
+	
+	<!-- Do a SCP
+		@from  the original file
+		@to    the destination file
+		@host  the destination host
+		@port  the SSH port (22 by default)
+		
+		influencing property: ssh.user to specifies a different username from the system username
+		note: a mkdir -p is made to ensure the existence of the destination directory
+	-->	
+	<macrodef name="scp-cmd" description="Launch a SCP to remote host command using the ssh.user property to specify the username and forcing the remote directory creation">
+		<attribute name="from" description="The local file to copy"/>
+		<attribute name="to"   description="The remote file"/>
+		<attribute name="host" description="The remote host"/>
+		<attribute name="port" default="22" description="The SSH port"/>
+		<element name="scp-elements" optional="true" implicit="true" description="Supplementary SSH options"/>
+		<sequential>
+			<ssh-userhost property="__ssh_host" host="@{host}"/>
+			<dirname property="scp-cmd-path@{to}" file="@{to}" />
+			<ssh-exec cmd="mkdir -m 0775 -p '${scp-cmd-path@{to}}'" host="${__ssh_host}" port="@{port}">
+				<scp-elements/>
+			</ssh-exec>
+			<scp-exec from="@{from}" to="@{to}" host="${__ssh_host}" port="@{port}">
+				<scp-elements/>
+			</scp-exec>
+			<ssh-exec cmd="chmod 0664 '@{to}'" host="${__ssh_host}" port="@{port}">
+				<scp-elements/>
+			</ssh-exec>
+			<var name="__ssh_host" unset="true"/>
+		</sequential>
+	</macrodef>
+	
+	<!-- Do a ssh sudo
+		@cmd   the command to execute
+		@host  the destination host
+		@port  the SSH port (22 by default)
+		
+		influencing property: ssh.user to specifies a different username from the system username
+	  -->	
+	<macrodef name="ssh-sudo" description="Launch a SSH sudo command using the property ssh.user as ssh username">
+		<attribute name="cmd" description="The command to execute as root"/>
+		<attribute name="host" description="The destination host"/>
+		<attribute name="port" default="22" description="The SSH port"/>
+		<element name="ssh-elements" optional="true" implicit="true" description="Supplementary SSH options"/>
+		<sequential>
+			<ssh-cmd cmd="sudo -n @{cmd}" host="@{host}" port="@{port}">
+				<ssh-elements/>
+			</ssh-cmd>
+		</sequential>
+	</macrodef>
+	
+	<!-- Do a SCP bouncing over a SSH proxy
+		@from  the original file
+		@to    the destination file
+		@host  the destination host
+		@port  the SSH port (22 by default)
+		@proxy the SSH proxy
+		
+		influencing property: ssh.user to specifies a different username from the system username
+	  -->	
+	<macrodef name="scp-tunnel" description="Launch a SCP to remote host using a SSH proxy to attain the remote host">
+		<attribute name="from" description="The local file to copy"/>
+		<attribute name="to"   description="The remote file"/>
+		<attribute name="host" description="The remote host"/>
+		<attribute name="port" default="22" description="The SSH port"/>
+		<attribute name="proxy" description="The proxy to use"/>
+		<sequential>
+			<ssh-userhost property="__ssh_proxy" host="@{proxy}"/>
+			<scp-cmd from="@{from}" to="@{to}" host="@{host}" port="@{port}">
+				<!-- ProxyCommand --><arg value="-o"/><arg value="ProxyCommand ssh ${__ssh_proxy} nc @{host} @{port}"/>
+			</scp-cmd>
+			<var name="__ssh_proxy" unset="true"/>
+		</sequential>
+	</macrodef>
+	
+	<!-- Do a ssh sudo bouncing over a SSH proxy
+		@cmd   the command to execute
+		@host  the destination host
+		@port  the SSH port (22 by default)
+		@proxy the SSH proxy
+		
+		influencing property: ssh.user to specifies a different username from the system username
+	  -->	
+	<macrodef name="ssh-tunnel-sudo" description="Launch a SSH sudo command using a SSH proxy to attain the remote host">
+		<attribute name="cmd" description="The command to execute as root"/>
+		<attribute name="host" description="The destination host"/>
+		<attribute name="port" default="22" description="The SSH port"/>
+		<attribute name="proxy" description="The proxy to use"/>
+		<sequential>
+			<ssh-userhost property="__ssh_proxy" host="@{proxy}"/>
+			<ssh-sudo cmd="@{cmd}" host="@{host}" port="@{port}">
+				<!-- ProxyCommand --><arg value="-o"/><arg value="ProxyCommand ssh ${__ssh_proxy} nc @{host} @{port}"/>
+			</ssh-sudo>
+			<var name="__ssh_proxy" unset="true"/>
+		</sequential>
+	</macrodef>
+	
+	<!-- Do a ssh exec over a SSH proxy
+		@cmd   the command to execute
+		@host  the destination host
+		@port  the SSH port (22 by default)
+		@proxy the SSH proxy
+		
+		influencing property: ssh.user to specifies a different username from the system username
+	  -->	
+	<macrodef name="ssh-tunnel" description="Launch a SSH command using a SSH proxy to attain the remote host">
+		<attribute name="cmd" description="The command to execute as root"/>
+		<attribute name="host" description="The destination host"/>
+		<attribute name="port" default="22" description="The SSH port"/>
+		<attribute name="proxy" description="The proxy to use"/>
+		<sequential>
+			<ssh-userhost property="__ssh_proxy" host="@{proxy}"/>
+			<ssh-exec cmd="@{cmd}" host="@{host}" port="@{port}">
+				<!-- ProxyCommand --><arg value="-o"/><arg value="ProxyCommand ssh ${__ssh_proxy} nc @{host} @{port}"/>
+			</ssh-exec>
+			<var name="__ssh_proxy" unset="true"/>
+		</sequential>
+	</macrodef>
+	
+	<!-- Do a SCP bouncing over a SSH proxy and ask for username if it fails
+		@from  the original file
+		@to    the destination file
+		@host  the destination host
+		@port  the SSH port (22 by default)
+		@proxy the SSH proxy
+
+		influencing property: ssh.user to specifies a different username from the system username
+	  -->	
+	<macrodef name="scp-tunnel-askusername" description="Do a SCP bouncing over a SSH proxy and ask for username if it fails">
+		<attribute name="from" description="The local file to copy"/>
+		<attribute name="to"   description="The remote file"/>
+		<attribute name="host" description="The remote host"/>
+		<attribute name="port" default="22" description="The SSH port"/>
+		<attribute name="proxy" description="The proxy to use"/>
+		<sequential>
+			<cmd-askusername>
+				<scp-tunnel from="@{from}" to="@{to}" proxy="@{proxy}" host="@{host}" port="@{port}"/>
+			</cmd-askusername>
+		</sequential>
+	</macrodef>
+	
+	<!-- Execute a ssh command bouncing over a SSH proxy and ask for username if it fails
+		@cmd   the command to execute
+		@host  the destination host
+		@port  the SSH port (22 by default)
+		@proxy the SSH proxy
+
+		influencing property: ssh.user to specifies a different username from the system username
+	  -->	
+	<macrodef name="ssh-tunnel-askusername" description="Execute a ssh command bouncing over a SSH proxy and ask for username if it fails">
+		<attribute name="cmd" description="The command to execute as root"/>
+		<attribute name="host" description="The destination host"/>
+		<attribute name="port" default="22" description="The SSH port"/>
+		<attribute name="proxy" description="The proxy to use"/>
+		<sequential>
+			<cmd-askusername>
+				<ssh-tunnel cmd="@{cmd}" proxy="@{proxy}" host="@{host}" port="@{port}"/>
+			</cmd-askusername>
+		</sequential>
+	</macrodef>
+	
+	<!-- Do a SCP and ask for username if it fails
+		@from  the original file
+		@to    the destination file
+		@host  the destination host
+		@port  the SSH port (22 by default)
+
+		influencing property: ssh.user to specifies a different username from the system username
+	  -->	
+	<macrodef name="scp-askusername" description="Do a SCP and ask for username if it fails">
+		<attribute name="from" description="The local file to copy"/>
+		<attribute name="to"   description="The remote file"/>
+		<attribute name="host" description="The remote host"/>
+		<attribute name="port" default="22" description="The SSH port"/>
+		<sequential>
+			<cmd-askusername>
+				<scp-cmd from="@{from}" to="@{to}" host="@{host}" port="@{port}"/>
+			</cmd-askusername>
+		</sequential>
+	</macrodef>
+	
+	<!-- Do a SSH and ask for username if it fails
+		@cmd   the command
+		@host  the destination host
+		@port  the SSH port (22 by default)
+
+		influencing property: ssh.user to specifies a different username from the system username
+	  -->
+	<macrodef name="ssh-askusername" description="Do a SSH and ask for username if it fails">
+		<attribute name="cmd" description="The command to execute as root"/>
+		<attribute name="host" description="The destination host"/>
+		<attribute name="port" default="22" description="The SSH port"/>
+		<sequential>
+			<cmd-askusername>
+				<ssh-cmd cmd="@{cmd}" host="@{host}" port="@{port}"/>
+			</cmd-askusername>
+		</sequential>
+	</macrodef>
+	
+</project>

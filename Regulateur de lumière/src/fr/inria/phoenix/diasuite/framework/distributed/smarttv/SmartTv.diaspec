@@ -1,0 +1,33 @@
+action ChannelControl{
+  changeChannel(channel as String);
+  nextChannel();
+  previousChannel();
+}
+action VolumeControl{
+  mute(mute as Boolean);
+  volumeUp();
+  volumeDown();
+  setVolume(level as Float);
+}
+action TimeControl{
+  play();
+  pause();
+  stop();
+}
+device SmartTv extends Tv {
+  action TimeControl;
+}
+device Tv extends PhysicalDevice {
+  source currentChannel as String;
+  source currentVolume as Float;
+  source mute as Boolean;
+  action ChannelControl;
+  action VolumeControl;
+}
+device PhysicalDevice extends Device {
+  attribute location as String;
+  attribute user as String;
+}
+device Device {
+  attribute id as String;
+}

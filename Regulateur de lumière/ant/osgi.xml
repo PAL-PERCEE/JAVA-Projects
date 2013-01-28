@@ -1,0 +1,357 @@
+<!--
+	This project contains targets specifics to OSGi bundling & deployment
+  -->
+<project>
+
+	<import optional="true" file="properties.xml" />
+
+	<property name="bundle.innerlibs" value="bundleinnerlibs" />
+
+	<!-- Hidden target: Package of osgi+fmk -->
+	<target name="~package.osgi+fmk">
+		<antcall target="~makeosgibundle">
+			<param name="excludefmk" value=""/>
+		</antcall>
+	</target>
+
+	<!-- Hidden target: Package of osgi -->
+	<target name="~package.osgi">
+		<antcall target="~makeosgibundle">
+			<param name="excludefmk" value="${framework.package.dir}"/>
+		</antcall>
+	</target>
+	
+	<!-- Hidden target: Compile and build an OSGi Bundle -->
+	<target name="~makeosgibundle">
+		<property name="jarFile" value="${build.dir}/${project.name}-bundle.jar" />
+		<property name="binDir" value="${compile.dir}/${project.name}-bundle" />
+		<delete file="${jarFile}" />
+		<antcall target="~build"/>
+
+		<echo level="info" message="Building OSGi bundle jar..." />
+
+		<mkdir dir="${build.dir}" />
+		<mkdir dir="${bundle.innerlibs}" />
+		<osgi.getactivator property="__activator" src="${src.dir}"/>
+		<osgi.copyinnerlibs types="${include.dependencies.osgi}" excludes="${exclude.dependencies.osgi}" dest="${bundle.innerlibs}"/>
+		<osgi.manifest file="${compile.dir}/manifest.mf" libs.base="${bundle.innerlibs}" name="${project.name}" activator="${__activator}" symname="${osgi.name}"/>
+		<osgi.jar file="${jarFile}" bin="${binDir}" libdir="${bundle.innerlibs}" src="${src.dir}" manifest="${compile.dir}/manifest.mf" fmk="${excludefmk}"/>
+
+		<delete file="${compile.dir}/manifest.mf"/>
+		<delete dir="${binDir}" />
+		<delete dir="${bundle.innerlibs}" />
+	</target>
+
+	<macrodef name="osgi.jar" description="Build an OSGi bundle">
+		<attribute name="file" description="The jar file to create"/>
+		<attribute name="libdir" description="The directory containings libraries"/> 
+		<attribute name="bin" description="The directory containings the binaries" default="${src.dir}"/> 
+		<attribute name="src" description="The directory containings the sources" default="${src.dir}"/> 
+		<attribute name="manifest" description="The manifest file"/> 
+		<attribute name="fmk" description="The framework directory to exclude (default: don't exclude)" default=""/> 
+		<sequential>
+			<if><equals arg1="@{fmk}" arg2=""/>
+				<then>
+					<jar destfile="@{file}" manifest="@{manifest}">
+						<fileset dir="@{bin}">
+							<include name="**/*" />
+						</fileset>
+						<fileset dir="@{libdir}">
+							<include name="**/*" />
+						</fileset>
+						<fileset dir="@{src}" defaultexcludes="false">
+							<exclude name="**/*.java" />
+							<exclude name="**/.svn/**" />
+						</fileset>
+					</jar>
+				</then>
+				<else>
+					<jar destfile="@{file}" manifest="@{manifest}">
+						<fileset dir="@{bin}" excludes="@{fmk}/">
+							<include name="**/*" />
+						</fileset>
+						<fileset dir="@{libdir}">
+							<include name="**/*" />
+						</fileset>
+						<fileset dir="@{src}" defaultexcludes="false" excludes="@{fmk}/">
+							<exclude name="**/*.java" />
+							<exclude name="**/.svn/**" />
+						</fileset>
+					</jar>
+				</else>
+			</if>
+		</sequential>
+	</macrodef>
+	
+	<macrodef name="osgi.copyinnerlibs" description="Copy inner libraries for OSGi bundles">
+		<attribute name="types" description="Coma-separated list of types of dependencies"/>
+		<attribute name="excludes" description="':'-separated list of files to excludes from dependencies" default=""/>
+		<attribute name="dest" description="Base destination directory"/>
+		<sequential>
+			<for param="type" list="@{types}" delimiter=":">
+				<sequential>
+					<for param="file" list="${orig.dependencies.@{type}}" delimiter=":">
+						<sequential>
+							<if><scriptcondition language="javascript" value="true">
+									var t = "@{excludes}".split(":");
+									for(var i in t) {
+										if(t[i] == "@{file}")
+											self.setValue(false);
+									}
+								</scriptcondition>
+								<then>
+									<copy file="${@{type}.dir}/@{file}" tofile="${bundle.innerlibs}/${@{type}.dir}/@{file}"/>
+								</then>
+							</if>
+						</sequential>
+					</for>
+				</sequential>
+			</for>
+		</sequential>
+	</macrodef>
+	
+	<macrodef name="osgi.manifest.create.final" description="Create the manifest for an OSGi bundle according to the parameters">
+		<attribute name="file" description="The manifest file" />
+		<attribute name="activator" description="The OSGi Activator" />
+		<attribute name="name" description="The name of the bundle" /> 
+		<attribute name="symname" description="The symbolic name of the bundle" /> 
+		<element name="attributes" implicit="true" optional="true" description="A list of extra attribute for the manifest"/>
+		<sequential>
+			<manifest file="@{file}">
+				<attribute name="Bundle-ManifestVersion" value="2"/>
+				<attribute name="Bundle-Name" value="@{name}"/>
+				<attribute name="Bundle-SymbolicName" value="@{symname}"/>
+				<attribute name="Bundle-Version" value="1.0.0"/>
+				<attribute name="Bundle-Vendor" value="INRIA Phoenix"/>
+				<attribute name="Bundle-Activator" value="@{activator}"/>
+				<attributes/>
+			</manifest>
+		</sequential>
+	</macrodef>
+	
+	<macrodef name="osgi.manifest.create.imports.exports.requirements" description="Create the manifest for an OSGi bundle according to the parameters (exports, imports, requiremetns excl)">
+		<attribute name="file" description="The manifest file" />
+		<attribute name="activator" description="The OSGi Activator" />
+		<attribute name="name" description="The name of the bundle" /> 
+		<attribute name="symname" description="The symbolic name of the bundle" /> 
+		<attribute name="requirements" description="The list of bundle requirements of this bundle" default=""/>
+		<attribute name="classpath" description="The classpath for the bundle" default=""/>
+		<element name="attributes" implicit="true" optional="true" description="A list of extra attribute for the manifest"/>
+		<sequential>
+			<if><equals arg1="@{classpath}" arg2=""/>
+				<then>
+					<osgi.manifest.create.final file="@{file}" activator="@{activator}" name="@{name}" symname="@{symname}">
+						<attributes/>
+					</osgi.manifest.create.final>
+				</then>
+				<else>
+					<osgi.manifest.create.final file="@{file}" activator="@{activator}" name="@{name}" symname="@{symname}">
+						<attribute name="Bundle-ClassPath" value="@{classpath}"/>
+						<attributes/>
+					</osgi.manifest.create.final>
+				</else>
+			</if>
+		</sequential>
+	</macrodef>
+	
+	<macrodef name="osgi.manifest.create.imports.exports" description="Create the manifest for an OSGi bundle according to the parameters (exports, imports excl)">
+		<attribute name="file" description="The manifest file" />
+		<attribute name="activator" description="The OSGi Activator" />
+		<attribute name="name" description="The name of the bundle" /> 
+		<attribute name="symname" description="The symbolic name of the bundle" /> 
+		<attribute name="requirements" description="The list of bundle requirements of this bundle" default=""/>
+		<attribute name="classpath" description="The classpath for the bundle" default=""/>
+		<element name="attributes" implicit="true" optional="true" description="A list of extra attribute for the manifest"/>
+		<sequential>
+			<if><equals arg1="@{requirements}" arg2=""/>
+				<then>
+					<osgi.manifest.create.imports.exports.requirements file="@{file}" activator="@{activator}" name="@{name}" symname="@{symname}"
+							classpath="@{classpath}">
+						<attributes/>
+					</osgi.manifest.create.imports.exports.requirements>
+				</then>
+				<else>
+					<osgi.manifest.create.imports.exports.requirements file="@{file}" activator="@{activator}" name="@{name}" symname="@{symname}"
+						classpath="@{classpath}">
+						<attribute name="Require-Bundle" value="@{requirements}"/>
+						<attributes/>
+					</osgi.manifest.create.imports.exports.requirements>
+				</else>
+			</if>
+		</sequential>
+	</macrodef>
+	
+	<macrodef name="osgi.manifest.create.imports" description="Create the manifest for an OSGi bundle according to the parameters (imports excl)">
+		<attribute name="file" description="The manifest file" />
+		<attribute name="activator" description="The OSGi Activator" />
+		<attribute name="name" description="The name of the bundle" /> 
+		<attribute name="symname" description="The symbolic name of the bundle" /> 
+		<attribute name="exports" description="The list of exports for the bundle" default=""/>
+		<attribute name="requirements" description="The list of bundle requirements of this bundle" default=""/>
+		<attribute name="classpath" description="The classpath for the bundle" default=""/>
+		<element name="attributes" implicit="true" optional="true" description="A list of extra attribute for the manifest"/>
+		<sequential>
+			<if><equals arg1="@{exports}" arg2=""/>
+				<then>
+					<osgi.manifest.create.imports.exports file="@{file}" activator="@{activator}" name="@{name}" symname="@{symname}"
+							requirements="@{requirements}" classpath="@{classpath}">
+						<attributes/>
+					</osgi.manifest.create.imports.exports>
+				</then>
+				<else>
+					<osgi.manifest.create.imports.exports file="@{file}" activator="@{activator}" name="@{name}" symname="@{symname}"
+							requirements="@{requirements}" classpath="@{classpath}">
+						<attributes/>
+						<attribute name="Export-Package" value="@{exports}"/>
+					</osgi.manifest.create.imports.exports>
+				</else>
+			</if>
+		</sequential>
+	</macrodef>
+
+	<macrodef name="osgi.manifest.create" description="Create the manifest for an OSGi bundle according to the parameters">
+		<attribute name="file" description="The manifest file" />
+		<attribute name="activator" description="The OSGi Activator" />
+		<attribute name="name" description="The name of the bundle" /> 
+		<attribute name="symname" description="The symbolic name of the bundle" /> 
+		<attribute name="imports" description="The list of imports for the bundle" default=""/>
+		<attribute name="exports" description="The list of exports for the bundle" default=""/>
+		<attribute name="requirements" description="The list of bundle requirements of this bundle" default=""/>
+		<attribute name="classpath" description="The classpath for the bundle" default=""/>
+		<sequential>
+			<if><equals arg1="@{imports}" arg2=""/>
+				<then>
+					<osgi.manifest.create.imports file="@{file}" activator="@{activator}" name="@{name}" symname="@{symname}"
+							exports="@{exports}" requirements="@{requirements}" classpath="@{classpath}">
+					</osgi.manifest.create.imports>
+				</then>
+				<else>
+					<osgi.manifest.create.imports file="@{file}" activator="@{activator}" name="@{name}" symname="@{symname}"
+							exports="@{exports}" requirements="@{requirements}" classpath="@{classpath}">
+						<attribute name="Import-Package" value="@{imports}"/>
+					</osgi.manifest.create.imports>
+				</else>
+			</if>
+		</sequential>
+	</macrodef>
+
+	<macrodef name="osgi.manifest" description="Construct the manifest for an OSGi bundle">
+		<attribute name="libs.base" description="The base directory directory of OSGi libraries" />
+		<attribute name="libs.relative" description="The relative directory directory of OSGi libraries" default="lib"/>
+		<attribute name="file" description="The manifest file" />
+		<attribute name="activator" description="The OSGi Activator" />
+		<attribute name="name" description="The name of the bundle" /> 
+		<attribute name="symname" description="The symbolic name of the bundle" /> 
+		<sequential>
+			<if><available file="@{libs.base}/@{libs.relative}"/>
+				<then>
+					<dirname property="__rootdir" file="@{libs.base}/@{libs.relative}"/><!-- Tricking -->
+					<pathconvert property="__classpath" pathsep=", " setonempty="true">
+						<map from="${__rootdir}/" to=""/>
+						<fileset dir="@{libs.base}/@{libs.relative}" excludes="${osgidevice.excludes}">
+						    <include name="**/*.jar"/>
+						</fileset>
+					</pathconvert>
+					<var name="__rootdir" unset="true"/>
+					<var name="__classpath" value="., ${__classpath}"/>
+				</then>
+				<else>
+					<property name="__classpath" value="."/>
+				</else>
+			</if>
+				
+			<if><equals arg1="${project.type}" arg2="device" />
+				<then>
+					<property name="__requirements" value="fr.inria.diagen.commlayer.osgi, fr.inria.phoenix.device.framework"/>
+				</then>
+				<elseif><not><equals arg1="@{name}" arg2="fr.inria.diagen.commlayer.osgi"/></not>
+					<then><property name="__requirements" value="fr.inria.diagen.commlayer.osgi"/></then>
+				</elseif>
+				<else>
+					<property name="__requirements" value=""/>
+				</else>
+			</if>
+			<if><isset property="osgi.imports"/>
+				<then>
+					<property name="__imports" value="${osgi.imports}"/>
+				</then>
+				<else>
+					<property name="__imports" value=""/>
+				</else>
+			</if>
+			<if><isset property="osgi.exports"/>
+				<then>
+					<property name="__exports" value="${osgi.exports}"/>
+				</then>
+				<else>
+					<property name="__exports" value=""/>
+				</else>
+			</if>
+			<osgi.manifest.create activator="@{activator}" classpath="${__classpath}" exports="${__exports}" file="@{file}"
+				imports="${__imports}" name="@{name}" requirements="${__requirements}" symname="@{symname}"/>
+			<var name="__classpath" unset="true"/>
+			<var name="__requirements" unset="true"/>
+		</sequential>
+	</macrodef>
+	
+	<macrodef name="osgi.getactivator" description="Determines the activator class for an OSGi bundle">
+		<attribute name="property" description="The property to set with the name of the activator class"/>
+		<attribute name="src" description="The source directory to look for activator class"/>
+		<sequential>
+			<dirname property="__rootdir" file="@{src}/XXX"/><!-- Tricking -->
+			<pathconvert property="__tmp" pathsep=":" setonempty="true">
+				<map from="${__rootdir}/" to=""/>
+				<fileset dir="@{src}">
+				    <include name="**/Activator.java"/>
+				</fileset>
+			</pathconvert>
+			<propertyregex select="\1" input="${__tmp}" regexp="^([^:]*)\.java" defaultValue="" property="__tmp2"/>
+			<propertyregex defaultValue="" replace="\." regexp="/" input="${__tmp2}" property="@{property}"/>
+			<var name="__tmp" unset="true"/>
+			<var name="__tmp2" unset="true"/>
+			<var name="__rootdir" unset="true"/>
+		</sequential>
+	</macrodef>
+	
+	<!-- Hidden target: Package of application -->
+	<target name="~package.app">
+		<property name="binDir" value="${compile.dir}/${project.name}" />
+
+		<antcall target="~build"/>
+		<echo level="info" message="Gathering application stuff..." />
+		<mkdir dir="${build.dir}" />
+		<jar destfile="${binDir}/implementation.jar">
+			<fileset dir="${binDir}">
+				<include name="${base.dir}/**/*" />
+				<exclude name="${base.dir}/simulation/" />
+			</fileset>
+			<fileset dir="${src.dir}">
+				<include name="${base.dir}/resource/**/*" />
+			</fileset>
+			<fileset dir="${libs.dir}">
+				<include name="library/**/*" />
+			</fileset>
+		</jar>
+		<delete file="${build.dir}/${project.name}-submission.zip" />
+		<zip destfile="${build.dir}/${project.name}-submission.zip">
+			<fileset file="${binDir}/implementation.jar" />
+			<fileset dir="${spec.dir}">
+				<include name="**/*.diaspec" />
+				<include name="**/*.png" />
+				<include name="**/description.txt" /> 
+			</fileset>
+		</zip>
+		<delete dir="${binDir}" />
+	</target>
+		
+	<!-- Hidden target: deployment of OSGi Application -->
+	<target name="~deploy.app">
+		<echo level="info">Deployment for OSGi Applications is not yet automatized, please update ${build.dir}/${project.name}-submission.zip on the application store</echo>
+	</target>
+
+	<!-- Hidden target: deployment of OSGi Device -->
+	<target name="~deploy.device">
+		<ssh-proxy-deploy from="${build.dir}/${project.name}-bundle.jar" to="${osgi.name}.jar"/>
+		<ssh-mysql query="REPLACE INTO ${mysql.device} (`id`, `name`, `file`, `description`) VALUES('${osgi.name}', '${project.fullname}', '${osgi.name}.jar', '${project.description}');"/>
+	</target>
+</project>

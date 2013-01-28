@@ -1,0 +1,31 @@
+enumeration OnOffStatus{ON, OFF}
+enumeration TemperatureUnit{CELSIUS, FAHRENHEIT, KELVIN}
+structure Temperature {
+value as Float;
+unit as TemperatureUnit;
+}
+action On{
+  on();
+}
+action Off{
+  off();
+}
+action SetTemperature{
+  setTemperature(value as Float, unit as TemperatureUnit);
+}
+device Thermostat extends Appliance {
+  source targetTemperature as Temperature;
+  action SetTemperature;
+}
+device Appliance extends PhysicalDevice {
+  source status as OnOffStatus;
+  action On;
+  action Off;
+}
+device PhysicalDevice extends Device {
+  attribute location as String;
+  attribute user as String;
+}
+device Device {
+  attribute id as String;
+}

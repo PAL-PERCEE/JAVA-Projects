@@ -1,0 +1,22 @@
+action Open{
+  open();
+}
+action Close{
+  close();
+}
+action SetShutterPosition{
+  setPosition(position as Float);
+}
+device Shutter extends PhysicalDevice {
+  source position as Float;
+  action Open;
+  action Close;
+  action SetShutterPosition;
+}
+device PhysicalDevice extends Device {
+  attribute location as String;
+  attribute user as String;
+}
+device Device {
+  attribute id as String;
+}

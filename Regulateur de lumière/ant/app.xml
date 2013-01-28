@@ -1,0 +1,109 @@
+<!--
+	Targets for application creation
+-->
+<project>
+
+	<import optional="true" file="properties.xml" />
+	
+	<!-- Hidden target: Create an application project -->
+	<target name="~create.app">
+		<mkdir dir="${deploy.dir}" />
+		<mkdir dir="${spec.dir}" />
+
+		<mkdir dir="${impl.dir}/context" />
+		<mkdir dir="${impl.dir}/controller" />
+		<mkdir dir="${impl.dir}/device" />
+
+		<antcall.ifexists target="taxonomy"/>
+		<app.create.main file="${deploy.dir}/Main.java" package="${package}"/>
+		<app.create.spec file="${spec.dir}/${project.name.lowercase}.diaspec" name="${project.name}" />
+	</target>
+
+	<macrodef name="app.create.main" description="Create a main java file">
+		<attribute name="file" description="The Main file to create"/>
+		<attribute name="package" description="The package of the file to create"/>
+		<sequential>
+			<create.ifnotexists file="@{file}">
+package @{package}.deploy;
+		
+//import fr.inria.diagen.commlayer.rmi.RmiServiceConfiguration;
+import fr.inria.diagen.core.ServiceConfiguration;
+import fr.inria.diagen.log.DiaLog;
+
+import fr.inria.phoenix.diasuite.framework.distributed.deployment.MainDeploy;
+
+public class Main extends MainDeploy {
+				
+	public static void main(String[] args) {
+		Main main = new Main();
+		main.deployAll();
+	}
+
+	public Main() {
+		//DiaLog.setLevel(DiaLog.INFO);
+		// add devices with add(...) methods
+	}
+	
+	@Override
+	public ServiceConfiguration getServiceConfiguration(String name) {
+		/*
+		   RmiServiceConfiguration srvCfg = new RmiServiceConfiguration();
+	       srvCfg.setName(name);
+		   srvCfg.setServerRegistryHost("localhost");
+		   return srvCfg;
+		 */
+		return null;
+	}
+}
+			</create.ifnotexists>
+		</sequential>
+	</macrodef>
+
+	<macrodef name="app.create.spec" description="Create a specification file for an application">
+		<attribute name="file" description="The specification file to create"/>
+		<attribute name="name" description="The project name"/>
+		<sequential>
+			<upper.first property="__name" value="@{name}"/>
+			<create.ifnotexists file="@{file}">
+include "taxonomy.diaspec";
+
+// ${__name} context
+context ${__name}Context as Boolean {
+}
+
+// ${__name} controller
+controller ${__name}Controller {
+}
+			</create.ifnotexists>
+			<var name="__name" unset="true"/>
+		</sequential>
+	</macrodef>
+
+			<!--
+	<target name="launchScenario" depends="buildScenario">
+		<java classname="${package}.deploy.Main" fork="true" failonerror="yes">
+			<jvmarg value="-Djava.security.policy=security.policy" />
+			<jvmarg value="-Ddiasuite.rmi.server.host=${diasuite.platform}" />
+			<classpath>
+				<fileset dir="${build.dir}" defaultexcludes="true">
+					<include name="**/*.jar" />
+				</fileset>
+			</classpath>
+		</java>
+	</target>
+
+
+	<target name="launchScenarioWithAddress" depends="buildScenario">
+		<java classname="${package}.deploy.Main" fork="true" failonerror="yes">
+			<jvmarg value="-Djava.security.policy=security.policy" />
+			<jvmarg value="-Ddiasuite.rmi.server.host=${diasuite.platform}" />
+			<jvmarg value="-Djava.rmi.server.hostname=${localaddress}" />
+			<classpath>
+				<fileset dir="${build.dir}" defaultexcludes="true">
+					<include name="**/*.jar" />
+				</fileset>
+			</classpath>
+		</java>
+	</target>
+-->
+</project>

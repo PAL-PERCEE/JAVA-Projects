@@ -1,0 +1,37 @@
+enumeration WeatherType{CLOUDY, RAINY, SUNNY}
+structure Date {
+day as Integer;
+month as Integer;
+year as Integer;
+hour as Integer;
+minute as Integer;
+}
+structure WeatherForecast {
+weather as Weather;
+date as Date;
+}
+structure Weather {
+type as WeatherType;
+temperature as Temperature;
+wind as WindInfo;
+}
+enumeration TemperatureUnit{CELSIUS, FAHRENHEIT, KELVIN}
+structure WindInfo {
+speed as Float;
+direction as String;
+}
+structure Temperature {
+value as Float;
+unit as TemperatureUnit;
+}
+device WeatherForecaster extends HomeService {
+  source currentWeather as Weather indexed by region as String;
+  source weatherForecasts as WeatherForecast[] indexed by region as String;
+}
+device HomeService extends Service {
+}
+device Service extends Device {
+}
+device Device {
+  attribute id as String;
+}

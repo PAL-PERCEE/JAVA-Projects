@@ -1,0 +1,24 @@
+structure Contact {
+name as String;
+emailAddress as String;
+phone as String;
+mobile as String;
+iconUrl as String;
+groups as String[];
+}
+action SendMessage{
+  sendMessage(to as Contact, title as String, content as String, attachments as File[]);
+  sendMessageWithImage(to as Contact, title as String, content as String, image as String);
+}
+device ScreenMessenger extends Messenger {
+}
+device Messenger extends PhysicalDevice {
+  action SendMessage;
+}
+device PhysicalDevice extends Device {
+  attribute location as String;
+  attribute user as String;
+}
+device Device {
+  attribute id as String;
+}

@@ -1,0 +1,185 @@
+<!-- This project contains targets specifics to Jar packaging -->
+<project>
+	<import optional="true" file="properties.xml" />
+	<import optional="true" file="deploy.xml"/>
+
+	<macrodef name="get.librarielist" description="Grab the list of libraries from a given path to construct a class-path">
+		<attribute name="property" description="The property to put the result in"/>
+		<attribute name="pathsep" description="The path separator" default=" "/>
+		<attribute name="dir" description="The directory to search for"/>
+		<sequential>
+			<pathconvert property="@{property}" pathsep=" ">
+				<mapper>
+					<chainedmapper>
+						<globmapper from="@{dir}/*" to="*" />
+					</chainedmapper>
+				</mapper>
+				<path path="@{dir}">
+					<fileset dir="@{dir}">
+						<include name="**/*.jar" />
+					</fileset>
+				</path>
+			</pathconvert>
+		</sequential>
+	</macrodef>
+	
+	<macrodef name="buildjar-src-manifest" description="Custom jar construction with source and manifest inlined">
+		<attribute name="destfile" description="The jar file to create" />
+		<attribute name="bin"      description="The binary directory" />
+		<attribute name="src"      description="The source directory" />
+		<element name="manifests" optional="true" />
+		<element name="srcexclude" optional="true" />
+		<sequential>
+			<jar destfile="@{destfile}">
+				<fileset dir="@{bin}">
+					<include name="**/*" />
+				</fileset>
+				<fileset dir="@{src}" defaultexcludes="false">
+					<srcexclude/>
+					<exclude name="**/.svn/**" />
+				</fileset>
+				<manifests/>
+			</jar>
+		</sequential>
+	</macrodef>
+
+	<macrodef name="buildjar-src" description="Custom jar construction with source inlined">
+		<attribute name="destfile" description="The jar file to create" />
+		<attribute name="bin"      description="The binary directory" />
+		<attribute name="src"      description="The source directory" />
+		<attribute name="manifest-main" default="" description="If setted, create a manifest file with this attribute as main class"/>
+		<attribute name="class-path" default="" description="If setted, add this attribute to the manifest file"/>
+		<element name="srcexcl" optional="true" implicit="true"/>
+		<sequential>
+			<if><equals arg1="@{manifest-main}" arg2=""/>
+				<then><buildjar-src-manifest destfile="@{destfile}" src="@{src}" bin="@{bin}"><srcexclude><srcexcl/></srcexclude></buildjar-src-manifest></then>
+				<else><if><equals arg1="@{class-path}" arg2=""/>
+					<then><buildjar-src-manifest destfile="@{destfile}" src="@{src}" bin="@{bin}">
+						<manifests><manifest>
+							<attribute name="Main-Class" value="@{manifest-main}" />
+							</manifest></manifests>
+						<srcexclude><srcexcl/></srcexclude>
+					</buildjar-src-manifest></then>
+					<else><buildjar-src-manifest destfile="@{destfile}" src="@{src}" bin="@{bin}">
+						<manifests><manifest>
+							<attribute name="Main-Class" value="@{manifest-main}" />
+							<attribute name="Class-Path" value="@{class-path}" />
+							</manifest></manifests>
+						<srcexclude><srcexcl/></srcexclude>
+					</buildjar-src-manifest></else>
+					</if>
+				</else>
+			</if>
+		</sequential>
+	</macrodef>
+
+	<macrodef name="buildjar" description="Custom jar construction">
+		<attribute name="destfile" description="The jar file to create" />
+		<attribute name="bin"      description="The binary directory" />
+		<attribute name="src"      description="The source directory" />
+		<attribute name="includesrc" default="false" description="Wether or not to include source in the jar" />
+		<attribute name="manifest-main" default="" description="If setted, create a manifest file with this attribute as main class"/>
+		<attribute name="class-path" default="" description="If setted, add this attribute to the manifest file"/>
+		<sequential>
+			<if><istrue value="@{includesrc}" />
+				<then><buildjar-src destfile="@{destfile}" src="@{src}" bin="@{bin}" manifest-main="@{manifest-main}" class-path="@{class-path}"/></then>
+				<else>
+					<buildjar-src destfile="@{destfile}" src="@{src}" bin="@{bin}" manifest-main="@{manifest-main}" class-path="@{class-path}">
+						<exclude name="**/*.java" />
+					</buildjar-src>
+				</else>
+			</if>
+		</sequential>
+	</macrodef>
+
+	<!-- Hidden target: build the source tree -->
+	<target name="~build">
+		<echo level="info" message="Compile source files..." />
+		<delete dir="${binDir}"/>
+		<mkdir dir="${binDir}" />
+		<javac srcdir="${src.dir}" destdir="${binDir}" debug="on">
+			<classpath>
+				<fileset dir="${libs.dir}">
+					<include name="**/*" />
+				</fileset>
+			</classpath>
+		</javac>		
+	</target>
+			
+	<!-- Hidden target: compile and build jar files -->
+	<target name="~makejar">
+		<property name="binDir" value="${compile.dir}/${jarFile}" />
+		<get.librarielist dir="${libs.dir}" property="libs.project" />
+
+		<antcall target="~build"/>
+		<delete file="${jarFile}.jar" />
+		<delete file="${jarFile}-src.jar" />
+
+		<echo level="info" message="Building jar without sources..." />
+		<mkdir dir="${build.dir}" />
+		<if><istrue value="${jarManifest}"/>
+			<then><buildjar destfile="${jarFile}.jar" bin="${binDir}" src="${src.dir}" manifest-main="${package}.deploy.Main" class-path="${libs.project}"/></then>
+			<else><buildjar destfile="${jarFile}.jar" bin="${binDir}" src="${src.dir}"/></else>
+		</if>
+		
+		<echo level="info" message="Building jar with sources..." />
+		<if><istrue value="${jarManifest}"/>
+			<then><buildjar destfile="${jarFile}.jar" bin="${binDir}" src="${src.dir}" manifest-main="${package}.deploy.Main" class-path="${libs.project}" includesrc="true"/></then>
+			<else><buildjar destfile="${jarFile}-src.jar" bin="${binDir}" src="${src.dir}" includesrc="true"/></else>
+		</if>
+		<delete dir="${binDir}" />
+	</target>
+	
+	<!-- Hidden target: jar make -->
+	<target name="~package.jar">
+		<mkdir dir="${build.dir}" />
+		<switch value="${project.type}">
+			<case value="app"><property name="jarManifest" value="true"/><property name="jarFile" value="${build.dir}/${project.name}"/></case>
+			<default><property name="jarManifest" value="false"/><property name="jarFile" value="${build.dir}/${project.name}"/></default>
+		</switch>
+		<antcall target="~makejar"/>
+		<var name="jarManifest" unset="true"/>
+		<var name="jarFile" unset="true"/>
+		<copy todir="${build.dir}">
+			<fileset dir="${libs.dir}" />
+		</copy>
+	</target>
+
+	<!-- Hidden target: core make -> JAR -->
+	<target name="~package.core">
+		<mkdir dir="${build.dir}" />
+		<antcall target="~makejar">
+			<param name="jarFile" value="${build.dir}/${project.name}" />
+		</antcall>
+		<copy todir="${build.dir}">
+			<fileset dir="${libs.dir}" />
+		</copy>
+	</target>
+		
+	<!-- Hidden target: clean the build directory -->
+	<propertyappend property="targets.clean" value="jar.clean"/><!-- Add jar cleaning as a default target -->
+	<target name="jar.clean">
+		<delete dir="${build.dir}" />
+	</target>
+
+	<!-- Hidden target: deploy a core library -->
+	<target name="~deploy.core">
+		<if><or><equals arg1="${pack.type}" arg2="osgi"/><equals arg1="${pack.type}" arg2="osgi+fmk"/></or>
+			<then><!-- osgi repository deploy -->
+				<ssh-proxy-deploy from="${build.dir}/${project.name}-bundle.jar" to="${project.name}.jar"/>
+				<ssh-deploy from="${build.dir}/${project.name}-bundle.jar" to="${project.name}.jar" base="${repository.branch}/${repository.diasuite}" />
+				<ssh-mysql query="REPLACE INTO ${mysql.core} (`name`, `file`) VALUES('${osgi.name}', '${project.name}.jar');"/>
+			</then>
+			<else>
+				<ssh-deploy from="${build.dir}/${project.name}.jar" to="${project.name}.jar" base="${repository.branch}/${repository.diasuite}" />
+			</else>
+		</if>
+	</target>
+				
+	<!-- Hidden target: deploy an internal library -->
+	<target name="~deploy.library">
+		<ssh-deploy from="${build.dir}/${project.name}.jar" to="${project.name}.jar" base="${repository.branch}/${repository.library}" />
+	</target>
+				
+
+</project>

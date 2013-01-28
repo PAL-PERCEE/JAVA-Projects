@@ -1,0 +1,5 @@
+device IHM extends Device {
+}
+device Device {
+  attribute id as String;
+}

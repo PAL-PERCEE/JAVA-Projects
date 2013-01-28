@@ -1,0 +1,28 @@
+enumeration TaskState{COMPLETED, TO_DO}
+structure Task {
+id as String;
+content as String;
+state as TaskState;
+}
+action AddTask{
+  addTask(task as Task);
+}
+action DeleteTask{
+  deleteTask(task as Task);
+}
+action UpdateTaskState{
+  update(taskId as String, state as TaskState);
+}
+device TaskManager extends HomeService {
+  source tasks as Task[];
+  action AddTask;
+  action DeleteTask;
+  action UpdateTaskState;
+}
+device HomeService extends Service {
+}
+device Service extends Device {
+}
+device Device {
+  attribute id as String;
+}

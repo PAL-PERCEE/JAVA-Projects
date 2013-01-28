@@ -1,0 +1,18 @@
+action Lock{
+  lock();
+}
+action UnLock{
+  unlock();
+}
+device DoorLocker extends PhysicalDevice {
+  source locked as Boolean;
+  action Lock;
+  action UnLock;
+}
+device PhysicalDevice extends Device {
+  attribute location as String;
+  attribute user as String;
+}
+device Device {
+  attribute id as String;
+}

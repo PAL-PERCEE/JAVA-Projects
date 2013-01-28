@@ -1,0 +1,28 @@
+structure Call {
+status as CallStatus;
+caller as String;
+}
+structure MissedCall {
+caller as String;
+date as String;
+}
+enumeration CallStatus{IDLE, RINGING, ESTABLISHED}
+action TelephonyGatewayConfiguration{
+  setRedirectionNumberOut(number as String);
+  setRedirectionNumberIn(number as String);
+}
+device TelephonyGateway extends HomeService {
+  source redirectionNumberOut as String;
+  source redirectionNumberIn as String;
+  source currentCall as Call;
+  source missedCalls as MissedCall[];
+  source lastMissedCall as MissedCall;
+  action TelephonyGatewayConfiguration;
+}
+device HomeService extends Service {
+}
+device Service extends Device {
+}
+device Device {
+  attribute id as String;
+}

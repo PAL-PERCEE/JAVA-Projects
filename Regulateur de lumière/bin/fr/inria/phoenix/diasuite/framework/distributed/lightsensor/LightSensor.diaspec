@@ -1,0 +1,12 @@
+device LightSensor extends Sensor {
+  source level as Float;
+}
+device Sensor extends PhysicalDevice {
+}
+device PhysicalDevice extends Device {
+  attribute location as String;
+  attribute user as String;
+}
+device Device {
+  attribute id as String;
+}

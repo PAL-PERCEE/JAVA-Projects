@@ -1,0 +1,8 @@
+device UserService extends Service {
+  attribute user as String;
+}
+device Service extends Device {
+}
+device Device {
+  attribute id as String;
+}

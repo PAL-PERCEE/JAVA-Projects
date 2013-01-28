@@ -1,0 +1,25 @@
+structure Contact {
+name as String;
+emailAddress as String;
+phone as String;
+mobile as String;
+iconUrl as String;
+groups as String[];
+}
+action AddressBookAction{
+  addContact(contact as Contact);
+  replaceContact(oldContact as Contact, newContact as Contact);
+  removeContact(contact as Contact);
+}
+device AddressBook extends HomeService {
+  attribute owner as String;
+  source contacts as Contact[] indexed by filter as Contact;
+  action AddressBookAction;
+}
+device HomeService extends Service {
+}
+device Service extends Device {
+}
+device Device {
+  attribute id as String;
+}

@@ -1,0 +1,66 @@
+<!--
+	This ant file exposes SSH macros to deploy files on the repositories using SSH with key authentication
+  -->
+<project>
+	
+	<import optional="true" file="properties.xml" />
+	<import optional="true" file="macros/ssh.xml"/>
+
+	<macrodef name="ssh-proxy-deploy" description="Deploy a file on the proxied repository">
+		<attribute name="from"        description="The path of the local file"/>
+		<attribute name="to"          description="The relative path of the remote file"/>
+		<sequential>
+			<!-- Copy -->
+			<scp-tunnel-askusername proxy="${ssh.proxy}" port="${ssh.port}" host="${ssh.host}" from="@{from}" to="${ssh.tmpdir}/@{to}"/>
+			<!-- Moving as root using sudo -->
+			<ssh-tunnel-sudo proxy="${ssh.proxy}" port="${ssh.port}" host="${ssh.host}" cmd="mv -f '${ssh.tmpdir}/@{to}' '${ssh.repodir}/@{to}'" />
+			<!-- Changing owner of the file to be root -->
+			<ssh-tunnel-sudo proxy="${ssh.proxy}" port="${ssh.port}" host="${ssh.host}" cmd="chown 0.0 '${ssh.repodir}/@{to}'" />
+			<!-- Changing rights of the file to be world-readable -->
+			<ssh-tunnel-sudo proxy="${ssh.proxy}" port="${ssh.port}" host="${ssh.host}" cmd="chmod 0644 '${ssh.repodir}/@{to}'" />
+			<!-- Fucking SELinux -->
+			<ssh-tunnel-sudo proxy="${ssh.proxy}" port="${ssh.port}" host="${ssh.host}" cmd="/sbin/restorecon -R ${ssh.repodir}" />
+		</sequential>
+	</macrodef>
+
+	<macrodef name="ssh-deploy"  description="Deploy a file on the repository">
+		<attribute name="from"   description="The path of the local file"/>
+		<attribute name="to"     description="The relative path of the remote file"/>
+		<attribute name="base"   description="The base directory of the remote file (e.g., diasuite, library, ...)"/>
+		<sequential>
+			<ssh-askusername cmd="rm -f ${repository.root}/@{base}/@{to}" host="${repository.host}" port="${ssh.port}"/>
+			<scp-askusername from="@{from}" to="${repository.root}/@{base}/@{to}" host="${repository.host}" port="${ssh.port}"/>
+		</sequential>
+	</macrodef>
+	
+	<macrodef name="ssh-clean" description="Recursive removal of a remote directory">
+		<attribute name="base" description="The relative path of the remote directory"/>
+		<sequential>
+			<ssh-askusername cmd="rm -fr ${repository.root}/@{base}" host="${repository.host}" port="${ssh.port}"/>
+		</sequential>
+	</macrodef>
+
+	<macrodef name="ssh-mysql" description="Executes a MySQL query on the repository">
+		<attribute name="db" description="The database to connect to" default="${mysql.db}"/>
+		<attribute name="user" description="The username to connect to the database" default="${mysql.user}"/>
+		<attribute name="pass" description="The password to connect to the database" default="${mysql.pass}"/>
+		<attribute name="query" description="The query to execute" />
+		<sequential>
+			<property name="ssh-mysql-pass" value="@{pass}"/>
+			<if><or><equals arg1="${ssh-mysql-pass}" arg2=""/><equals arg1="${ssh-mysql-pass}" arg2="$${mysql.pass}"/></or>
+				<then>
+					<var name="ssh-mysql-pass" unset="true"/>
+					<input message="MySQL @{user} password:" addproperty="ssh-mysql-pass" defaultvalue=""/>
+				</then>
+			</if>
+			<propertyregex property="ssh-mysql-query1" input="@{query}" regexp='"' replace='\\\\"' global="true" defaultValue="@{query}"/>
+			<propertyregex property="ssh-mysql-query" input="${ssh-mysql-query1}" regexp='`' replace='\\\\`' global="true" defaultValue="@{ssh-mysql-query1}"/>
+			<ssh-tunnel-askusername cmd="echo &quot;${ssh-mysql-query}&quot;>/tmp/sql.query" host="${ssh.host}" port="${ssh.port}" proxy="${ssh.proxy}"/>
+			<ssh-tunnel-askusername cmd="mysql -u @{user} -p${ssh-mysql-pass} @{db} &lt;/tmp/sql.query" host="${ssh.host}" port="${ssh.port}" proxy="${ssh.proxy}"/>
+			<ssh-tunnel-askusername cmd="rm -f /tmp/sql.query" host="${ssh.host}" port="${ssh.port}" proxy="${ssh.proxy}"/>
+			<var name="ssh-mysql-pass" unset="true"/>
+			<var name="ssh-mysql-query" unset="true"/>
+			<var name="ssh-mysql-query1" unset="true"/>
+		</sequential>
+	</macrodef>
+</project>

@@ -1,0 +1,21 @@
+enumeration OnOffStatus{ON, OFF}
+action On{
+  on();
+}
+action Off{
+  off();
+}
+device Light extends Appliance {
+}
+device Appliance extends PhysicalDevice {
+  source status as OnOffStatus;
+  action On;
+  action Off;
+}
+device PhysicalDevice extends Device {
+  attribute location as String;
+  attribute user as String;
+}
+device Device {
+  attribute id as String;
+}

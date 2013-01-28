@@ -1,0 +1,90 @@
+<!--
+	Ant targets and macros specific to rmi execution
+  -->
+<project>
+	
+	<macrodef name="create.securitypolicy" description="Create a security policy file if not existannt">
+		<attribute name="file" default="security.policy" description="The name of the security policy file"/>
+		<sequential>
+			<create.ifnotexists file="@{file}">
+grant {
+	permission java.security.AllPermission;
+};
+			</create.ifnotexists>
+		</sequential>
+	</macrodef>
+
+	<macrodef name="rmi.run" description="Launch a process that needs RMI" >
+		<attribute name="class" description="The classname to run"/>
+		<attribute name="fork"  description="Fork the process" default="true"/>
+		<attribute name="spawn" description="Spawn the process" default="false"/>
+		<element name="args" optional="true" description="Arguments to the program"/>
+		<element name="files" optional="true" description="Extra fileset to the classpath"/>
+		<sequential>
+			<create.securitypolicy />
+			<java classname="@{class}" fork="@{fork}" failonerror="yes" spawn="@{spawn}">
+				<jvmarg value="-Djava.security.policy=security.policy" />
+				<jvmarg value="-Ddiasuite.rmi.server.host=${diasuite.platform}" />
+				<args/>
+				<classpath>
+					<fileset dir="${libs.dir}">
+						<include name="**/*.jar" />
+						<exclude name="**/swt-*.jar" />
+					</fileset>
+					<files/>
+				</classpath>
+			</java>
+		</sequential>
+	</macrodef>
+	
+	<!-- Hidden target: launch the RMI proxy server if not launched already -->
+	<target name="~rmi.server">
+		<exec executable="jps" failonerror="false" resultproperty="pslist"/>
+		<propertyregex property="rmiserverpid" input="${pslist}" select="\1" override="true" default="" regexp="^([0-9]*)\s*RmiProxyServer$"/>
+		<var name="pslist" unset="true"/>
+		<if><equals arg1="${rmiserverpid}" arg2=""/>
+			<then>
+				<create.securitypolicy/>
+				<echo level="info">Running RmiProxyServer...</echo>
+				<if><isset property="localaddress"/>
+					<then>
+						<rmi.run class="fr.inria.diagen.commlayer.rmi.proxyserver.RmiProxyServer" spawn="true">
+							<args>
+								<arg value="--verbose" />
+								<arg value="--logfile" />
+								<arg value="server.log" />
+								<arg value="--localaddress" />
+								<arg value="${localaddress}" />
+							</args>
+						</rmi.run>
+					</then>
+					<else>
+						<rmi.run class="fr.inria.diagen.commlayer.rmi.proxyserver.RmiProxyServer" spawn="true">
+							<args>
+								<arg value="--verbose" />
+								<arg value="--logfile" />
+								<arg value="server.log" />
+							</args>
+						</rmi.run>
+					</else>
+				</if>
+			</then>
+		</if>
+		<var name="rmiserverpid" unset="true"/>
+	</target>
+
+	<!-- Hidden target: launching in RMI -->
+	<target name="~rmi.launch">
+		<if><istrue value="${rmi.localserver}"/><then><antcall target="~rmi.server"/></then></if>
+		<rmi.run class="fr.inria.phoenix.scenario.${project.name.lowercase}.deploy.Main">
+			<files><filelist><file name="${build.dir}/${project.name}.jar" /></filelist></files>
+		</rmi.run>
+	</target>
+	
+	<!-- Hidden target: cleaning rmi files -->
+	<propertyappend property="targets.clean" value="rmi.clean"/><!-- Add rmi cleaning as a default clean target -->
+	<target name="rmi.clean">
+		<delete file="security.policy"/>
+		<delete file="server.log"/>
+	</target>
+</project>

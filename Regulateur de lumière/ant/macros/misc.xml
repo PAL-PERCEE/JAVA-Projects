@@ -1,0 +1,116 @@
+<!-- Misc. macros  -->
+<project>
+	
+	<macrodef name="create.ifnotexists" description="Create a file if not existant">
+		<attribute name="file" description="The name of the file to create"/>
+		<text name="text" description="The default text for the file" optional="true"/>
+		<sequential>
+			<if><not><available file="@{file}"/></not>
+				<then>
+					<echo file="@{file}">@{text}</echo>
+				</then>
+			</if>
+		</sequential>
+	</macrodef>
+
+	
+	<macrodef name="antcall.ifexists" description="Call a target if it exists">
+        <attribute name="target" description="The target to execute"/>
+		<attribute name="inheritAll" description="If true, pass all properties to the new Apache Ant project" default="true"/>
+		<attribute name="inheritRefs" description="If true, pass all references to the new Ant project" default="false"/>
+		<sequential>
+			<if><scriptcondition language="javascript" value="false">
+					if(project.getTargets().containsKey("@{target}")) {
+						self.setValue(true);
+				   }   
+				</scriptcondition>
+				<then>
+					<antcall target="@{target}" inheritall="@{inheritAll}" inheritrefs="@{inheritRefs}"/>
+				</then>
+			</if>
+		</sequential>
+	</macrodef>
+	
+	<if><not><typefound name="get.repository"/></not><then>
+		<macrodef name="get.repository" description="Fetch a file from the repository">
+			<attribute name="src" description="The file to fetch"/>
+			<attribute name="dest" default="." description="The directory to put the file"/>
+			<attribute name="filename" default="" description="The new name of the file"/>
+			<sequential>
+				<if><equals arg1="@{filename}" arg2=""/>
+					<then><basename property="__filename" file="@{src}"/></then>
+					<else><property name="__filename" value="@{filename}"/></else>
+				</if>
+				<if><and><isset property="repository.username"/><not><equals arg1="${repository.username}" arg2=""/></not></and>
+					<then><get src="${repository.http}/${repository.branch}/@{src}" dest="@{dest}/${__filename}" verbose="off" username="${repository.username}" password="${repository.password}"/></then>
+					<else>
+						<trycatch property="foo">
+							<try><get src="${repository.http}/${repository.branch}/@{src}" dest="@{dest}/${__filename}" verbose="off" /></try>
+							<catch><!-- Try prompting the user for a username password pair -->
+								<echo level="info">Failed to grab @{src} because of ${foo}... Trying using a login/password pair...</echo>
+								<input message="Repository username:" addproperty="repository.username" defaultvalue="${user.name}"/>
+								<input message="Password for user ${repository.username}: " addproperty="repository.password"/>
+								<get src="${repository.http}/${repository.branch}/@{src}" dest="@{dest}/${__filename}" verbose="off" username="${repository.username}" password="${repository.password}"/>
+							</catch>
+						</trycatch>
+					</else>
+				</if>
+				<var name="__filename" unset="true"/>
+			</sequential>
+		</macrodef>
+	</then></if>
+	
+	<macrodef name="upper.first" description="Uppercase the first letter">
+		<attribute name="value" description="The value to uppercase"/>
+		<attribute name="property" description="The property to output the result"/>
+		<sequential>
+			<script language="javascript">
+				if("@{value}".length == 1) project.setProperty("@{property}", "@{value}".toUpperCase());
+				else project.setProperty("@{property}", "@{value}"[0].toUpperCase() + "@{value}".substring(1));
+			</script>
+		</sequential>
+	</macrodef>
+
+	<macrodef name="lowercase" description="Lower case a value">
+		<attribute name="value" description="The value to lowercase"/>
+		<attribute name="property" description="The property to output the result"/>
+		<sequential>
+			<script language="javascript">
+				project.setProperty("@{property}", "@{value}".toLowerCase());
+			</script>
+		</sequential>
+	</macrodef>
+
+
+	<macrodef name="trim" description="Trim a value">
+		<attribute name="property" description="The property to set"/>
+		<attribute name="value" description="The value to trim"/>
+		<attribute name="override" description="Override the property" default="false"/>
+		<sequential>
+			<if><istrue value="@{override}"/><then><var name="@{property}" unset="true"/></then></if>
+			<propertyregex property="@{property}" input="@{value}" defaultValue="" select="\1" regexp="^\s*([^\s]*)\s*$"/>
+		</sequential>
+	</macrodef>
+
+	<macrodef name="defproperty" description="Set a property if not setted">
+		<attribute name="property" description="The name of the property to set"/>
+		<attribute name="value"    description="The value to set to the property if the property doesn't exists"/>
+		<attribute name="trim"     description="Trim the property if exists" default="false"/>
+		<sequential>
+			<if>
+				<not><isset property="@{property}"/></not>
+				<then>
+					<property name="@{property}" value="@{value}"/>
+				</then>
+				<else>
+					<if><istrue value="@{trim}"/>
+						<then>
+							<trim property="@{property}" value="${@{property}}" override="true"/>
+						</then>
+					</if>
+				</else>
+			</if>
+		</sequential>
+	</macrodef>
+	
+</project>

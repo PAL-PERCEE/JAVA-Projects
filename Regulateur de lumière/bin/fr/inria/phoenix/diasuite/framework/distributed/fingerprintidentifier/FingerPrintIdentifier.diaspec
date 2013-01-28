@@ -1,0 +1,12 @@
+device FingerPrintIdentifier extends Identifier {
+}
+device Identifier extends PhysicalDevice {
+  source present as Boolean indexed by id as String;
+}
+device PhysicalDevice extends Device {
+  attribute location as String;
+  attribute user as String;
+}
+device Device {
+  attribute id as String;
+}

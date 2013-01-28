@@ -1,0 +1,100 @@
+<!--
+	This project contains the targets specifics to simulation
+-->
+<project>
+
+	<import optional="true" file="properties.xml" />
+	<import optional="true" file="generate.xml" />
+	<import optional="true" file="jar.xml" />
+	<import optional="true" file="rmi.xml" />
+
+	<!-- Hidden target: build the simulation jar -->
+	<target name="~build.simu">
+		<antcall target="~makejar">
+			<param name="jarFile" value="${build.dir}/${project.name}" />
+		</antcall>
+	</target>
+
+	<macrodef name="getswt" description="Determine the SWT library depending on the operating system">
+		<attribute name="property" description="The property to put the swt name in"/>
+		<attribute name="jvmargs" description="The property to put the extra JVM arguments in"/>
+		<sequential>
+			<switch value="${os.family}">
+				<case value="mac">
+					<if><equals arg1="${os.arch}" arg2="x86_64"/>
+						<then><property name="@{property}" value="swt-macosx-64bit.jar"/></then>
+						<else><property name="@{property}" value="swt-macosx-32bit.jar"/></else>
+					</if>
+					<property name="@{jvmargs}" value="-XstartOnFirstThread" />
+				</case>
+				<case value="unix">
+					<if><equals arg1="${os.name}" arg2="Linux"/>
+						<then>
+							<property name="@{property}" value="swt-linux.jar"/>
+							<property name="@{jvmargs}"  value="" />
+						</then>
+						<else>
+							<fail message="Unsupported unix-like system ${os.name}"/>
+						</else>
+					</if>
+				</case>
+				<case value="windows">
+					<property name="@{property}" value="swt-windows.jar"/>
+					<property name="@{jvmargs}"  value="" />
+				</case>
+				<default>
+					<fail message="Unsupported system family ${os.family}"/>
+				</default>
+			</switch>
+		</sequential>
+	</macrodef>
+	
+	<macrodef name="simu.launch" description="Java command to run a simulation">
+		<attribute name="class" description="The class to run"/>
+		<attribute name="jar" default="" description="Main jar file (if empty, use SWT)"/>
+		<element name="arguments" implicit="true" optional="true" description="Arguments to the program"/>
+		<sequential>
+			<if><equals arg1="@{jar}" arg2=""/>
+				<then>
+					<getswt property="swtLibrary" jvmargs="extraJVMArgs"/>
+					
+					<rmi.run class="@{class}">
+						<args><jvmarg line="-Xmx1024m ${extraJVMArgs}" /><arguments/></args>
+						<files><filelist><file name="${external.dir}/${swtLibrary}" /></filelist></files>
+					</rmi.run>
+					
+					<var name="swtLibrary" unset="true"/>
+					<var name="extraJVMArgs" unset="true"/>
+				</then>
+				<else>
+					<rmi.run class="@{class}">
+						<args><arguments/></args>
+						<files><filelist><file name="@{jar}" /></filelist></files>
+					</rmi.run>
+				</else>
+			</if>
+		</sequential>
+	</macrodef>
+
+	<!-- Hidden target: launch the simulation -->
+	<target name="~launch.simu" depends="~build.simu">
+		<parallel>
+			<sequential>
+				<simu.launch class="de.nec.nle.siafu.control.Siafu">
+					<arg value="-s=${build.dir}/${project.name}.jar" />
+				</simu.launch>
+			</sequential>
+			<sequential>
+				<sleep seconds="5" />
+				<simu.launch class="fr.inria.phoenix.scenario.${project.name.lowercase}.deploy.Main" jar="${build.dir}/${project.name}.jar" />
+			</sequential>
+		</parallel>
+	</target>
+
+	<!-- Hidden target: launch the edition of the simulation -->
+	<target name="~config.simu " depends="~build.simu">
+		<simu.launch class="fr.labri.phoenix.simulation.wizard.Main" jar="${libs.dir}/diasuite/Wizard.jar">
+			<arg value="--scenario=${build.dir}/${project.name}.jar" />
+		</simu.launch>
+	</target>
+</project>

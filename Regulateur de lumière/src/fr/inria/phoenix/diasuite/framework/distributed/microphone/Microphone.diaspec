@@ -1,0 +1,25 @@
+structure FileInfo {
+name as String;
+type as FileType;
+size as Integer;
+}
+structure File {
+info as FileInfo;
+content as Binary;
+}
+enumeration FileType{SOUND, DIRECTORY, RAW_AUDIO, OTHER, TEXT, IMAGE, VIDEO}
+action StartStopRecording{
+  startRecording();
+  stopRecording();
+}
+device Microphone extends PhysicalDevice {
+  source sound as File;
+  action StartStopRecording;
+}
+device PhysicalDevice extends Device {
+  attribute location as String;
+  attribute user as String;
+}
+device Device {
+  attribute id as String;
+}

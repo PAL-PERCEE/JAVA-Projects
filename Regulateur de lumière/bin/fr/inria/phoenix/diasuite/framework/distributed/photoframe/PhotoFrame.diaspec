@@ -1,0 +1,27 @@
+structure FileInfo {
+name as String;
+type as FileType;
+size as Integer;
+}
+structure File {
+info as FileInfo;
+content as Binary;
+}
+enumeration FileType{SOUND, DIRECTORY, RAW_AUDIO, OTHER, TEXT, IMAGE, VIDEO}
+action PhotoFrameManagement{
+  setCurrentPhoto(photo as File);
+  addPhoto(photo as File);
+  removePhoto(photo as File);
+  removeAllPhoto();
+}
+device PhotoFrame extends PhysicalDevice {
+  source photos as File[];
+  action PhotoFrameManagement;
+}
+device PhysicalDevice extends Device {
+  attribute location as String;
+  attribute user as String;
+}
+device Device {
+  attribute id as String;
+}

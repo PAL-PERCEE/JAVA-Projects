@@ -1,0 +1,89 @@
+<!-- Base build file -->
+<project name="DiaBuild">
+	<property file="diauser.properties" />
+	<property file="diaproject.properties" />
+	<property name="repository.branch" value="private/branches/Project/DiaSuiteBox"/>
+	<property name="repository.http"   value="http://diagen.gforge.inria.fr"/>
+	<property name="repository.ant-contrib" value="${repository.http}/diasuite/ant/ant-contrib.jar" />
+
+	<macrodef name="get.repository" description="Fetch a file from the repository">
+		<attribute name="src" description="The file to fetch"/>
+		<attribute name="dest" default="." description="The directory to put the file"/>
+		<attribute name="filename" default="" description="The new name of the file"/>
+		<sequential>
+			<if><equals arg1="@{filename}" arg2=""/>
+				<then><basename property="__filename" file="@{src}"/></then>
+				<else><property name="__filename" value="@{filename}"/></else>
+			</if>
+			<if><and><isset property="repository.username"/><not><equals arg1="${repository.username}" arg2=""/></not></and>
+				<then><get src="${repository.http}/${repository.branch}/@{src}" dest="@{dest}/${__filename}" verbose="off" username="${repository.username}" password="${repository.password}"/></then>
+				<else>
+					<trycatch property="foo">
+						<try><get src="${repository.http}/${repository.branch}/@{src}" dest="@{dest}/${__filename}" verbose="off" /></try>
+						<catch><!-- Try prompting the user for a username password pair -->
+							<echo level="info">Failed to grab @{src} because of ${foo}... Trying using a login/password pair...</echo>
+							<input message="Repository username:" addproperty="repository.username" defaultvalue="${user.name}"/>
+							<input message="Password for user ${repository.username}: " addproperty="repository.password"/>
+							<get src="${repository.http}/${repository.branch}/@{src}" dest="@{dest}/${__filename}" verbose="off" username="${repository.username}" password="${repository.password}"/>
+						</catch>
+					</trycatch>
+				</else>
+			</if>
+			<var name="__filename" unset="true"/>
+		</sequential>
+	</macrodef>
+		
+	<!-- Ant files -->
+	<import optional="true" file="ant/all.xml"/>
+
+	<!-- Installing ant files and everything else -->	
+	<target name="install" description="Fetch the ant files from the repository">
+		<!-- Clean the ant directory -->
+		<delete dir="ant"/>
+		<mkdir dir="ant" />
+		
+		<!-- Copy the ant-contrib binary so we can use it-->
+		<get dest="ant/ant-contrib.jar"  src="${repository.ant-contrib}"/>
+		<taskdef resource="net/sf/antcontrib/antlib.xml" classpath="ant/ant-contrib.jar"/> <!-- Get the for task -->
+		
+		<!-- Load the ant file list -->
+		<get.repository src="ant.list"/>
+		<property file="ant.list"/>
+		<delete file="ant.list"/>
+		
+		<!-- Copy the project properties if not existent -->
+		<if>
+			<not><available file="diaproject.properties"/></not>
+			<then>
+				<echo level="info">Installing diaproject.properties</echo>
+				<get.repository src="diaproject.properties" />
+			</then>
+		</if>
+		<!-- Copy all.xml -->
+   		<echo level="info">Installing all.xml</echo>
+		<get.repository dest="ant" src="ant/all.xml" />
+		
+		<!-- And copy all the other files -->
+		<for param="file" list="${ant.list}" delimiter=":">
+        	<sequential>
+           		<echo level="info">Installing @{file}</echo>
+           		<dirname property="bdir@{file}" file="ant/@{file}"/>
+           		<mkdir dir="${bdir@{file}}"/>
+				<get.repository dest="${bdir@{file}}" src="ant/@{file}" />
+			</sequential> 
+		</for>
+	</target>
+	
+	<!-- Don't run this one from the CompilationScripts project or you are screwed -->
+	<target name="clean" description="Clean the ant files">
+		<!-- Calling cleaning targets -->
+		<if><not><equals arg1="${targets.clean}" arg2="$${targets.clean}"/></not>
+			<then>
+				<for param="target" list="${targets.clean}" delimiter=":">
+					<sequential><antcall target="@{target}" /></sequential>
+				</for>
+			</then>
+		</if>
+		<delete dir="ant"/>
+	</target>
+</project>

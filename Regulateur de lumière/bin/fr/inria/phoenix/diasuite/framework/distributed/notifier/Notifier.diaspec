@@ -1,0 +1,14 @@
+enumeration NotificationLevel{INFORMATION, WARNING, CRITICAL}
+action Notification{
+  notify(level as NotificationLevel);
+}
+device Notifier extends PhysicalDevice {
+  action Notification;
+}
+device PhysicalDevice extends Device {
+  attribute location as String;
+  attribute user as String;
+}
+device Device {
+  attribute id as String;
+}

@@ -1,0 +1,30 @@
+<!-- Project containing targets specifics to device creation -->
+<project>
+
+	<import optional="true" file="properties.xml" />
+	
+	<macrodef name="device.create.spec" description="Create a device specification if it doesn't exits">
+		<attribute name="file" description="The specification file to create"/>
+		<attribute name="name" description="The project name"/>
+		<sequential>
+			<upper.first property="__name" value="@{name}"/>
+			<create.ifnotexists file="@{file}">
+include "taxonomy.diaspec";
+
+// ${__name} device
+device ${__name}Device {
+}
+			</create.ifnotexists>
+			<var name="__name" unset="true"/>
+		</sequential>
+	</macrodef>
+
+	<!-- Hidden target: create a device project -->
+	<target name="~create.device">
+		<mkdir dir="${spec.dir}" />
+		<mkdir dir="${impl.dir}/device" />
+
+		<antcall.ifexists target="taxonomy"/>
+		<device.create.spec file="${spec.dir}/${project.name.lowercase}.diaspec" name="${project.name}"/>
+	</target>
+</project>

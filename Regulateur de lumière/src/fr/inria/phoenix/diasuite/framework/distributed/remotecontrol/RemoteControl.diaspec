@@ -1,0 +1,11 @@
+enumeration MultimediaOrder{RECORD, VOLUME_UP, PAUSE, DIGIT_0, VOLUME_DOWN, DIGIT_1, MUTE, PREVIOUS, STOP, NEXT, DIGIT_2, DIGIT_3, DIGIT_4, PLAY, DIGIT_5, DIGIT_6, INFO, DIGIT_7, DIGIT_8, DIGIT_9}
+device RemoteControl extends PhysicalDevice {
+  source order as MultimediaOrder;
+}
+device PhysicalDevice extends Device {
+  attribute location as String;
+  attribute user as String;
+}
+device Device {
+  attribute id as String;
+}

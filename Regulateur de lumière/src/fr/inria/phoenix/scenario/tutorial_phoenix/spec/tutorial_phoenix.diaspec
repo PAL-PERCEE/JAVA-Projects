@@ -1,0 +1,49 @@
+
+include "taxonomy.diaspec";
+
+structure Lightaction{
+	value as Integer;
+	state as LightState;
+}
+
+enumeration LightState {
+	AMBRE, LUMINEUX
+}
+
+// Device
+device SetPointConsole {
+	source setPoint as Integer;
+}
+/* Device Light (existe deja)*/
+
+// Tutorial_phoenix context
+context LumiereCalculee as Integer {
+	source level from LightSensor;
+	behavior {
+		when provided level from LightSensor;
+		always publish;
+	}
+}
+
+context RegulationIndicator as Float{
+	context LumiereCalculee;
+	source setPoint from SetPointConsole;
+	source level from DimmableLight;
+	behavior {
+		when provided LumiereCalculee;
+		get setPoint from SetPointConsole, level from DimmableLight;
+		maybe publish;
+	}
+	
+}
+
+// Tutorial_phoenix controller
+controller Tutorial_phoenixController {
+	context RegulationIndicator;
+	action VariationControl on DimmableLight;
+	behavior {
+		when provided RegulationIndicator;
+		do all VariationControl on DimmableLight;
+	}
+}
+			

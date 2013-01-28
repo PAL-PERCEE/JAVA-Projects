@@ -1,0 +1,12 @@
+device ScreenInput extends Input {
+}
+device Input extends PhysicalDevice {
+  source message as String;
+}
+device PhysicalDevice extends Device {
+  attribute location as String;
+  attribute user as String;
+}
+device Device {
+  attribute id as String;
+}

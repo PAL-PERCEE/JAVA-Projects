@@ -1,0 +1,53 @@
+<!-- 
+	Ant project containing generic targets common to all project
+	
+	taxonomy: Download the selected taxonomy
+	create: The create target install the base skeleton for a project including the correct dependencies
+	package: Package the project
+	deploy: The deploy target upload the bundle to the correct repository
+	config:  Configure the execution phase if needed
+	launch:  Launch the project
+	
+	Targets not defined in this files are:
+		install & clean: Those targets needs to be defined in the root build.xml
+		dependencies: The target code is specific to dependencies and belongs to dependencies.xml\
+		test: The target code is specific to dependencies and belongs to dependencies.xml\
+ -->
+<project>
+	<import file="dependencies.xml" optional="true"/>
+	<import file="deploy.xml" optional="true"/>
+	
+	<target name="taxonomy" description="Grab the taxonomy from the remote repository">
+		<if><not><isset property="taxonomy.name"/></not>
+			<then>
+				<get.repository src="${repository.taxonomies}/${repository.taxolist}"/>
+				<property file="${repository.taxolist}"/>
+				<delete file="${repository.taxolist}" quiet="on"/>
+				<input message="Which taxonomy would you like to install?" validargs="${taxonomies}" addproperty="taxonomy.name"/>
+				<echo level="info">Selected ${taxonomy.name}, please set the taxonomy.name variable in the project properties to avoid beeing prompted next time</echo>
+			</then>
+		</if>
+		<get.repository src="${repository.taxonomies}/${taxonomy.name}.diaspec" dest="${spec.dir}" filename="taxonomy.diaspec"/>
+	</target>
+	
+	<target name="create" description="Create the skeleton for the project type described in ${project.type}" depends="dependencies">
+		<antcall.ifexists target="~create.${project.type}"/>
+	</target>
+	
+	<target name="package" description="Package this project">
+		<antcall.ifexists target="~package.${pack.type}"/>
+	</target>
+
+	<target name="deploy" description="Deploy this project" depends="package">
+		<antcall.ifexists target="~deploy.${project.type}"/>
+	</target>
+
+	<target name="config" description="Configure the execution of this project" depends="package">
+		<antcall.ifexists target="~config.${launch.type}"/>
+	</target>
+
+	<target name="launch" description="Launch this project" depends="package">
+		<antcall.ifexists target="~launch.${launch.type}"/>
+	</target>
+
+</project>

@@ -1,0 +1,12 @@
+device TemperatureSensor extends Sensor {
+  source temperature as Float indexed by unit as TemperatureUnit;
+}
+device Sensor extends PhysicalDevice {
+}
+device PhysicalDevice extends Device {
+  attribute location as String;
+  attribute user as String;
+}
+device Device {
+  attribute id as String;
+}

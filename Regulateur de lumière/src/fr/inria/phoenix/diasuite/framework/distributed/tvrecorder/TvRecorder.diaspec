@@ -1,0 +1,31 @@
+structure FileInfo {
+name as String;
+type as FileType;
+size as Integer;
+}
+structure Date {
+day as Integer;
+month as Integer;
+year as Integer;
+hour as Integer;
+minute as Integer;
+}
+structure File {
+info as FileInfo;
+content as Binary;
+}
+enumeration FileType{SOUND, DIRECTORY, RAW_AUDIO, OTHER, TEXT, IMAGE, VIDEO}
+action TvRecording{
+  record(name as String, channel as String, startDate as Date, endDate as Date);
+}
+device TvRecorder extends PhysicalDevice {
+  source recordedProgram as File indexed by name as String;
+  action TvRecording;
+}
+device PhysicalDevice extends Device {
+  attribute location as String;
+  attribute user as String;
+}
+device Device {
+  attribute id as String;
+}

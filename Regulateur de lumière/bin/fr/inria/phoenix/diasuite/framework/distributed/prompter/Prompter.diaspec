@@ -1,0 +1,25 @@
+structure Contact {
+name as String;
+emailAddress as String;
+phone as String;
+mobile as String;
+iconUrl as String;
+groups as String[];
+}
+action AskQuestion{
+  askCloseQuestion(to as Contact, questionId as String, title as String, content as String, possibleAnswers as String[]);
+  askCloseQuestionWithImage(to as Contact, questionId as String, title as String, content as String, possibleAnswers as String[], image as String);
+  askOpenQuestion(to as Contact, questionId as String, title as String, content as String);
+  askOpenQuestionWithImage(to as Contact, questionId as String, title as String, content as String, image as String);
+}
+device Prompter extends PhysicalDevice {
+  source answer as String indexed by questionId as String;
+  action AskQuestion;
+}
+device PhysicalDevice extends Device {
+  attribute location as String;
+  attribute user as String;
+}
+device Device {
+  attribute id as String;
+}

@@ -1,0 +1,192 @@
+<!-- Project containing targets specifics to taxonomies -->
+<project>
+
+	<import optional="true" file="properties.xml" />
+	<import optional="true" file="generate.xml"/>
+	<import optional="true" file="jar.xml"/>
+		
+	<macrodef name="taxonomy.create.spec" description="Create a device specification if it doesn't exits">
+		<attribute name="file" description="The specification file to create"/>
+		<attribute name="name" description="The project name"/>
+		<sequential>
+			<var name="__name" unset="true"/>
+		</sequential>
+	</macrodef>
+
+	<macrodef name="taxo.packagelist" description="List the packages from a path set">
+		<attribute name="property" description="The property to put the result in" />
+		<element name="pathelements" implicit="true" />
+		<sequential>
+			<var name="@{property}" value=""/>
+			<dirname property="root.dir" file="${src.dir}/fr"/><!-- Tricking -->
+			<for param="file"> <!-- Create the list of exported package -->
+				<path>
+					<pathelements/>
+				</path>
+				<sequential>
+					<property name="_file" value="@{file}"/>
+					<script language="javascript">
+						var file = project.getProperty("_file");
+						var rootDir = project.getProperty("root.dir");
+						if(file.indexOf(rootDir) == 0) {
+							project.setProperty("_file", file.substring(rootDir.length()+1));
+						}
+					</script>
+					<propertyregex property="__file" input="${_file}" regexp="/" replace="\." global="true" defaultValue=""/>
+					<propertyappend property="@{property}" separator="," append="__file"/>
+					<var unset="true" name="__file"/>
+					<var unset="true" name="_file"/>
+				</sequential>
+			</for>
+			<var unset="true" name="root.dir"/>
+		</sequential>
+	</macrodef>
+	
+	<!-- Hidden target: create a taxonomy project -->
+	<target name="~create.taxo">
+		<mkdir dir="${taxonomies.dir}" />
+		<create.ifnotexists file="${taxonomies.dir}/taxonomy.diaspec"/>
+	</target>
+
+	<!-- Hidden target: Generate the framework source and files -->
+	<target name="~generate.taxo">
+		<delete dir="${src.dir}"/>
+		<!-- Generate the framework -->
+		<for list="${generators}" delimiter=":" param="generator">
+			<sequential>
+				<generate-framework generator="@{generator}" spec="${specFile}"/>
+			</sequential>
+		</for>
+		<!-- Generate OSGi Activator -->
+		<mkdir dir="${deploy.dir}"/>
+		<create.ifnotexists file="${deploy.dir}/Activator.java">
+			package ${package}.deploy;
+
+			import org.osgi.framework.BundleActivator;
+			import org.osgi.framework.BundleContext;
+
+			public class Activator implements BundleActivator {
+
+				private static BundleContext context;
+
+				static BundleContext getContext() {
+					return context;
+				}
+
+				public void start(BundleContext bundleContext) throws Exception {
+					Activator.context = bundleContext;
+				}
+
+				public void stop(BundleContext bundleContext) throws Exception {
+					Activator.context = null;
+				}
+			}
+		</create.ifnotexists>
+		<!-- Copy the taxonomy file -->
+		<mkdir dir="${spec.dir}"/>
+		<copy file="${specFile}" tofile="${spec.dir}/taxonomy.diaspec"/>
+		<!-- Generate the manifest -->
+		<taxo.packagelist property="package.list">
+			<dirset dir="${framework.dir}/datatype" includes="*/**"/>
+			<dirset dir="${framework.dir}/distributed" includes="*/**"/>
+		</taxo.packagelist>
+		<mkdir dir="${compile.dir}"/>
+		<manifest file="${compile.dir}/manifest.mf">
+			<attribute name="Bundle-ManifestVersion" value="2"/>
+			<attribute name="Bundle-Name" value="${specName}-Framework"/>
+			<attribute name="Bundle-SymbolicName" value="${taxonomy.bundlename}.${spec}"/>
+			<attribute name="Bundle-Version" value="1.0.0"/>
+			<attribute name="Bundle-Vendor" value="INRIA Phoenix"/>
+			<attribute name="Bundle-Activator" value="${package}.deploy.Activator"/>
+			<attribute name="Import-Package" value="org.osgi.framework;version=&quot;1.3.0&quot;"/>
+			<attribute name="Require-Bundle" value="fr.inria.diagen.commlayer.osgi;bundle-version=&quot;1.0.0&quot;"/>
+			<attribute name="Export-Package" value="${package.list}"/>
+		</manifest>
+		<var name="package.list" unset="true"/>
+	</target>
+		
+	<!-- Hidden target: package a single taxonomy bundle -->
+	<target name="~package.taxo.one" >
+		<basename file="${specFile}" property="spec" suffix=".diaspec"/>
+		<upper.first property="specName" value="${spec}"/> 
+		<property name="jarFile" value="${build.dir}/${specName}Taxonomy.jar"/>
+		
+		<!-- Recompile only if the jar was updated -->
+		<if><not><uptodate srcfile="${specFile}" targetfile="${jarFile}"/></not>
+			<then>
+				<echo level="info">Preparing package for taxonomy ${specName}</echo>
+				<!-- Generate the framework -->
+				<antcall target="~generate.taxo"/>
+				<!-- Compile the framework -->
+				<antcall target="~build">
+					<param name="binDir" value="${compile.dir}/${specName}" />
+				</antcall>
+				
+				<echo level="info">Creating the OSGi Bundle for taxonomy ${specName}</echo>
+				<!-- Create the OSGi bundle -->
+				<mkdir dir="${build.dir}"/>
+				<delete file="${jarFile}"/>
+				<jar destfile="${jarFile}" manifest="${compile.dir}/manifest.mf">
+					<fileset dir="${compile.dir}/${specName}">
+						<include name="**/*"/>
+					</fileset>
+				</jar>
+		
+				<!-- Cleaning all -->
+				<delete dir="${src.dir}"/>
+				<delete dir="${compile.dir}"/>
+				<var name="spec" unset="true"/>
+				<var name="specName" unset="true"/>
+				<var name="jarFile" unset="true"/>
+			</then>
+		</if>
+	</target>
+		
+	<!-- Hidden target: package a taxonomy project -> OSGi Bundle for the list of taxonomies -->
+	<target name="~package.taxo">
+		<!-- Iterate throught the list of taxonomies -->
+		<foreach param="specFile" target="~package.taxo.one">
+			<path>
+				<fileset dir="${taxonomies.dir}">
+					<include name="*.diaspec" />
+				</fileset>
+			</path>
+		</foreach>
+	</target>
+	
+	<!-- Hidden target: deployment of Taxonomies -->
+	<target name="~deploy.taxo">
+		<property name="taxonomies" value="" />
+		<ssh-clean base="${repository.branch}/${repository.taxonomies}"/>
+		<!-- Iterate throught the list of taxonomies -->
+		<for param="specFile">
+			<path>
+				<fileset dir="${taxonomies.dir}">
+					<include name="*.diaspec" />
+				</fileset>
+			</path>
+			<sequential>
+				<basename file="@{specFile}" property="spec" suffix=".diaspec"/>
+				<upper.first property="specName" value="${spec}"/> 
+			
+				<echo level="info">Deploying taxonomy ${specName}</echo>
+				<if><available file="${build.dir}/${specName}Taxonomy.jar"/>
+					<then>
+						<ssh-proxy-deploy from="${build.dir}/${specName}Taxonomy.jar" to="${specName}Taxonomy.jar"/>
+						<propertyappend property="taxonomies" value="${spec}" separator=","/>
+						<ssh-deploy from="@{specFile}" to="${spec}.diaspec" base="${repository.branch}/${repository.taxonomies}" />
+						<ssh-mysql query="REPLACE INTO ${mysql.core} (`name`, `file`) VALUES('${taxonomy.bundlename}.${spec}', '${specName}Taxonomy.jar');"/>
+					</then>
+					<else><echo level="error">Ignoring deployment of taxonomy ${specName}: bundle not found</echo></else>
+				</if>
+				
+				<var name="spec" unset="true"/>
+				<var name="specName" unset="true"/>
+			</sequential>
+		</for>
+		<echo file="${build.dir}/taxolist">taxonomies=${taxonomies}</echo>
+		<ssh-deploy from="${build.dir}/taxolist" to="${repository.taxolist}" base="${repository.branch}/${repository.taxonomies}" />
+		<delete file="${build.dir}/taxolist"/>
+	</target>
+
+</project>
